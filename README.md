@@ -87,16 +87,18 @@ Don't just read the title. `bv` gives you the full picture:
 ```
 ### Using bv as an AI sidecar
 
-  bv is a fast terminal UI for Beads projects (.beads/beads.jsonl). It renders lists/details and precomputes dependency metrics (PageRank, critical path, cycles, etc.) so you instantly see blockers and execution order. For agents, it’s a graph sidecar: instead of parsing JSONL or risking hallucinated traversal, call the robot flags to get deterministic, dependency-aware outputs.
+bv is a fast terminal UI for Beads projects (.beads/beads.jsonl). It renders lists/details and precomputes dependency metrics (PageRank, critical path, cycles, etc.) so you instantly see blockers and execution order. For agents, it’s a graph sidecar: instead of parsing JSONL or risking hallucinated traversal, call the robot flags to get deterministic, dependency-aware outputs.
 
-  - bv --robot-help — shows all AI-facing commands.
-  - bv --robot-insights — JSON graph metrics (PageRank, betweenness, HITS, critical path, cycles) with top-N summaries for quick triage.
-  - bv --robot-plan — JSON execution plan: parallel tracks, items per track, and unblocks lists showing what each item frees up.
-  - bv --robot-priority — JSON priority recommendations with reasoning and confidence.
-  - bv --robot-recipes — list recipes (default, actionable, blocked, etc.); apply via bv --recipe <name> to pre-filter/sort before other flags.
-  - bv --robot-diff --diff-since <commit|date> — JSON diff of issue changes, new/closed items, and cycles introduced/resolved.
+*IMPORTANT: As an agent, you must ONLY use bv with the robot flags, otherwise you'll get stuck in the interactive TUI that's intended for human usage only!*
 
-  Use these commands instead of hand-rolling graph logic; bv already computes the hard parts so agents can act safely and quickly.
+- bv --robot-help — shows all AI-facing commands.
+- bv --robot-insights — JSON graph metrics (PageRank, betweenness, HITS, critical path, cycles) with top-N summaries for quick triage.
+- bv --robot-plan — JSON execution plan: parallel tracks, items per track, and unblocks lists showing what each item frees up.
+- bv --robot-priority — JSON priority recommendations with reasoning and confidence.
+- bv --robot-recipes — list recipes (default, actionable, blocked, etc.); apply via bv --recipe <name> to pre-filter/sort before other flags.
+- bv --robot-diff --diff-since <commit|date> — JSON diff of issue changes, new/closed items, and cycles introduced/resolved.
+
+Use these commands instead of hand-rolling graph logic; bv already computes the hard parts so agents can act safely and quickly.
 ```
 
 
@@ -1311,6 +1313,36 @@ In complex software projects, tasks are not isolated. They are deeply interconne
 *   **Rendering:** 60 FPS UI updates using [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 *   **Virtualization:** List views and Markdown renderers are fully windowed. `bv` can handle repositories with **10,000+ issues** without UI lag, consuming minimal RAM.
 *   **Graph Compute:** The analysis engine runs in a separate goroutine, pre-calculating metrics for thousands of nodes in sub-second time on standard hardware.
+
+### Performance Benchmarking
+
+`bv` includes a comprehensive benchmark suite for performance validation:
+
+```bash
+# Run all benchmarks
+./scripts/benchmark.sh
+
+# Save current performance as baseline
+./scripts/benchmark.sh baseline
+
+# Compare against baseline (requires benchstat)
+./scripts/benchmark.sh compare
+
+# Quick benchmarks (CI mode)
+./scripts/benchmark.sh quick
+```
+
+**Benchmark Categories:**
+- **Full Analysis**: End-to-end `Analyze()` pipeline at various scales
+- **Individual Algorithms**: PageRank, Betweenness, HITS, TopoSort isolation
+- **Pathological Graphs**: Stress tests for timeout protection (many cycles, complete graphs)
+- **Timeout Verification**: Ensures large graphs don't hang
+
+**Timeout Protection:**
+All expensive algorithms (Betweenness, PageRank, HITS, Cycle detection) have 500ms timeouts to prevent blocking on large or pathological graphs.
+
+**Detailed Tuning Guide:**
+For comprehensive performance documentation including troubleshooting, size-based algorithm selection, and tuning options, see [docs/performance.md](docs/performance.md).
 
 ---
 

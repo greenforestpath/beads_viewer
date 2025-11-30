@@ -1,0 +1,64 @@
+goos: linux
+goarch: amd64
+pkg: beads_viewer/pkg/analysis
+cpu: AMD Ryzen Threadripper PRO 5975WX 32-Cores     
+BenchmarkApproxBetweenness_500nodes_Exact-64        	       2	 723728387 ns/op	178799888 B/op	  828223 allocs/op
+BenchmarkApproxBetweenness_500nodes_Exact-64        	       2	 750428322 ns/op	166258104 B/op	  759121 allocs/op
+BenchmarkApproxBetweenness_500nodes_Exact-64        	       2	 733821582 ns/op	202707408 B/op	  702856 allocs/op
+BenchmarkApproxBetweenness_500nodes_Sample100-64    	       1	3509488352 ns/op	806810216 B/op	 1701042 allocs/op
+BenchmarkApproxBetweenness_500nodes_Sample100-64    	       1	3449953695 ns/op	823360776 B/op	 1532614 allocs/op
+BenchmarkApproxBetweenness_500nodes_Sample100-64    	       1	3361006761 ns/op	839521656 B/op	 1880616 allocs/op
+BenchmarkApproxBetweenness_500nodes_Sample50-64     	       2	1721866752 ns/op	454831952 B/op	 1126010 allocs/op
+BenchmarkApproxBetweenness_500nodes_Sample50-64     	       1	1478702401 ns/op	602497416 B/op	  673229 allocs/op
+BenchmarkApproxBetweenness_500nodes_Sample50-64     	       1	1492683280 ns/op	514245304 B/op	 1233603 allocs/op
+BenchmarkCycles_ManyCycles20-64                     	       2	 502865450 ns/op	21570832 B/op	   64404 allocs/op
+BenchmarkCycles_ManyCycles20-64                     	       2	 503072611 ns/op	68684940 B/op	  177432 allocs/op
+BenchmarkCycles_ManyCycles20-64                     	       2	 503312842 ns/op	207765700 B/op	  215953 allocs/op
+BenchmarkCycles_ManyCycles30-64                     	       2	 502255974 ns/op	162780792 B/op	  355558 allocs/op
+BenchmarkCycles_ManyCycles30-64                     	       2	 504227624 ns/op	47215880 B/op	   85471 allocs/op
+BenchmarkCycles_ManyCycles30-64                     	       2	 503049698 ns/op	72244824 B/op	  144589 allocs/op
+BenchmarkCycles_SingleCycle100-64                   	     100	  34684224 ns/op	 4430315 B/op	    9949 allocs/op
+BenchmarkCycles_SingleCycle100-64                   	     100	  26233099 ns/op	 3674120 B/op	    9137 allocs/op
+BenchmarkCycles_SingleCycle100-64                   	     100	  25522925 ns/op	 3974917 B/op	    8088 allocs/op
+BenchmarkComplete_Betweenness15-64                  	     252	   7890914 ns/op	 1074577 B/op	    3228 allocs/op
+BenchmarkComplete_Betweenness15-64                  	     176	  11513997 ns/op	 1221096 B/op	    2805 allocs/op
+BenchmarkComplete_Betweenness15-64                  	     205	   8427981 ns/op	 1393180 B/op	    3196 allocs/op
+BenchmarkComplete_PageRank20-64                     	    1154	   1298837 ns/op	  360718 B/op	     592 allocs/op
+BenchmarkComplete_PageRank20-64                     	     799	   2005785 ns/op	  280421 B/op	     582 allocs/op
+BenchmarkComplete_PageRank20-64                     	    2175	   1364115 ns/op	  321149 B/op	     679 allocs/op
+BenchmarkComplete_HITS15-64                         	     528	   2465272 ns/op	  257743 B/op	     881 allocs/op
+BenchmarkComplete_HITS15-64                         	    1232	   1528983 ns/op	  282784 B/op	     924 allocs/op
+BenchmarkComplete_HITS15-64                         	    3319	    355171 ns/op	  344635 B/op	     887 allocs/op
+BenchmarkLongChain_Betweenness500-64                	       3	 569191598 ns/op	556243554 B/op	 1869268 allocs/op
+BenchmarkLongChain_Betweenness500-64                	       3	 409534116 ns/op	586117330 B/op	 1694279 allocs/op
+BenchmarkLongChain_Betweenness500-64                	       2	 605220920 ns/op	963706096 B/op	 1812784 allocs/op
+BenchmarkLongChain_TopoSort2000-64                  	     100	  21513777 ns/op	21164187 B/op	   47555 allocs/op
+BenchmarkLongChain_TopoSort2000-64                  	      84	  20244329 ns/op	22524955 B/op	   45577 allocs/op
+BenchmarkLongChain_TopoSort2000-64                  	      76	  18031709 ns/op	20350022 B/op	   47848 allocs/op
+BenchmarkFullAnalysis_ManyCycles20-64               	       1	1105001979 ns/op	1223962888 B/op	 3097363 allocs/op
+BenchmarkFullAnalysis_ManyCycles20-64               	       1	1323700542 ns/op	1031456168 B/op	 2632395 allocs/op
+BenchmarkFullAnalysis_ManyCycles20-64               	       1	1147244912 ns/op	1090465648 B/op	 2792334 allocs/op
+BenchmarkFullAnalysis_ManyCycles30-64               	       1	2004253343 ns/op	2211199552 B/op	 5363012 allocs/op
+BenchmarkFullAnalysis_ManyCycles30-64               	       1	2007897686 ns/op	1697606208 B/op	 4099732 allocs/op
+BenchmarkFullAnalysis_ManyCycles30-64               	       1	2009660162 ns/op	2179595968 B/op	 5451803 allocs/op
+BenchmarkFullAnalysis_Complete15-64                 	       1	2003786395 ns/op	2307373184 B/op	 3733111 allocs/op
+BenchmarkFullAnalysis_Complete15-64                 	       1	2003865282 ns/op	1265547344 B/op	 3121096 allocs/op
+BenchmarkFullAnalysis_Complete15-64                 	       1	2008233389 ns/op	2753219696 B/op	 4572474 allocs/op
+BenchmarkFullAnalysis_Sparse100-64                  	      39	  27676530 ns/op	43486318 B/op	   72952 allocs/op
+BenchmarkFullAnalysis_Sparse100-64                  	      69	  25619383 ns/op	26367250 B/op	   71429 allocs/op
+BenchmarkFullAnalysis_Sparse100-64                  	      46	  28289361 ns/op	25237484 B/op	   84139 allocs/op
+BenchmarkFullAnalysis_Sparse500-64                  	       2	 755839706 ns/op	553754616 B/op	 1555193 allocs/op
+BenchmarkFullAnalysis_Sparse500-64                  	       2	 671008117 ns/op	575686012 B/op	 1601666 allocs/op
+BenchmarkFullAnalysis_Sparse500-64                  	      10	1165108934 ns/op	326240421 B/op	  815820 allocs/op
+BenchmarkFullAnalysis_Sparse1000-64                 	       1	1752732477 ns/op	350263520 B/op	  995553 allocs/op
+BenchmarkFullAnalysis_Sparse1000-64                 	       1	2152415192 ns/op	236869336 B/op	  716122 allocs/op
+BenchmarkFullAnalysis_Sparse1000-64                 	       2	 938631059 ns/op	548700104 B/op	 1568454 allocs/op
+BenchmarkFullAnalysis_Dense100-64                   	      76	 119889898 ns/op	59852429 B/op	  144749 allocs/op
+BenchmarkFullAnalysis_Dense100-64                   	      94	  68980058 ns/op	53153767 B/op	  151607 allocs/op
+BenchmarkFullAnalysis_Dense100-64                   	      80	  74534724 ns/op	82766143 B/op	  123924 allocs/op
+BenchmarkFullAnalysis_Dense500-64                   	       2	 774568684 ns/op	1260118444 B/op	 2192363 allocs/op
+BenchmarkFullAnalysis_Dense500-64                   	       2	 757890549 ns/op	664254336 B/op	 2010378 allocs/op
+BenchmarkFullAnalysis_Dense500-64                   	       1	1840032855 ns/op	282107768 B/op	  888655 allocs/op
+BenchmarkFullAnalysis_Chain100-64                   	       7	 179020041 ns/op	270040704 B/op	  226825 allocs/op
+BenchmarkFullAnalysis_Chain100-64                   	      14	  87701947 ns/op	68230532 B/op	  223305 allocs/op
+BenchmarkFullAnalysis_Chain100-64                   	

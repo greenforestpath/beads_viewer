@@ -11,6 +11,32 @@
 
   Use these commands instead of hand-rolling graph logic; bv already computes the hard parts so agents can act safely and quickly.
 
+### bv Performance Considerations for AI Agents
+
+  bv uses a two-phase startup for responsive performance:
+  - **Phase 1 (instant):** Degree, topo sort, basic stats - available immediately
+  - **Phase 2 (async):** PageRank, betweenness, HITS, cycles - computed in background
+
+  **For large graphs (>500 nodes):**
+  - Some expensive metrics (betweenness) may be skipped automatically
+  - Cycle detection limited to prevent exponential blowup
+  - Use `--robot-insights` and check for skipped metrics
+
+  **Timeout handling:**
+  - All expensive algorithms have 500ms timeouts
+  - Robot output includes timeout flags when metrics are incomplete
+  - Design agents to handle partial data gracefully
+
+  **Diagnostic commands:**
+  - `bv --profile-startup` — detailed timing breakdown
+  - `bv --profile-startup --profile-json` — machine-readable profile
+
+  **Best practices:**
+  - Use `--robot-plan` for immediate actionable items (fast, Phase 1 only)
+  - Use `--robot-insights` when you need full graph metrics (waits for Phase 2)
+  - Avoid `--force-full-analysis` unless absolutely needed (can be slow)
+
+  See [docs/performance.md](docs/performance.md) for detailed tuning guide.
 
 ---
 
@@ -128,3 +154,97 @@ Parse: `file:line:col` → location | 💡 → how to fix | Exit 0/1 → pass/fa
 ---
 
 You should try to follow all best practices laid out in the file GOLANG_BEST_PRACTICES.md
+
+
+---
+
+
+### Morph Warp Grep — AI-powered code search
+
+**Use `mcp__morph-mcp__warp_grep` for exploratory "how does X work?" questions.** An AI search agent automatically expands your query into multiple search patterns, greps the codebase, reads relevant files, and returns precise line ranges with full context—all in one call.
+
+**Use `ripgrep` (via Grep tool) for targeted searches.** When you know exactly what you're looking for—a specific function name, error message, or config key—ripgrep is faster and more direct.
+
+**Use `ast-grep` for structural code patterns.** When you need to match/rewrite AST nodes while ignoring comments/strings, or enforce codebase-wide rules.
+
+**When to use what**
+
+| Scenario | Tool | Why |
+|----------|------|-----|
+| "How is authentication implemented?" | `warp_grep` | Exploratory; don't know where to start |
+| "Where is the L3 Guardian appeals system?" | `warp_grep` | Need to understand architecture, find multiple related files |
+| "Find all uses of `useQuery(`" | `ripgrep` | Targeted literal search |
+| "Find files with `console.log`" | `ripgrep` | Simple pattern, known target |
+| "Rename `getUserById` → `fetchUser`" | `ast-grep` | Structural refactor, avoid comments/strings |
+| "Replace all `var` with `let`" | `ast-grep` | Codemod across codebase |
+
+**warp_grep strengths**
+
+* **Reduces context pollution**: Returns only relevant line ranges, not entire files.
+* **Intelligent expansion**: Turns "appeals system" into searches for `appeal`, `Appeals`, `guardian`, `L3`, etc.
+* **One-shot answers**: Finds the 3-5 most relevant files with precise locations vs. manual grep→read cycles.
+* **Natural language**: Works well with "how", "where", "what" questions.
+
+**warp_grep usage**
+
+```
+mcp__morph-mcp__warp_grep(
+  repoPath: "/data/projects/communitai",
+  query: "How is the L3 Guardian appeals system implemented?"
+)
+```
+
+Returns structured results with file paths, line ranges, and extracted code snippets.
+
+**Rule of thumb**
+
+* **Don't know where to look** → `warp_grep` (let AI find it)
+* **Know the pattern** → `ripgrep` (fastest)
+* **Need AST precision** → `ast-grep` (safest for rewrites)
+
+**Anti-patterns**
+
+* ❌ Using `warp_grep` to find a specific function name you already know → use `ripgrep`
+* ❌ Using `ripgrep` to understand "how does X work" → wastes time with manual file reads
+* ❌ Using `ripgrep` for codemods → misses comments/strings, risks collateral edits
+
+### Morph Warp Grep vs Standard Grep
+
+Warp Grep = AI agent that greps, reads, follows connections, returns synthesized context with line numbers.
+Standard Grep = Fast regex match, you interpret results.
+
+Decision: Can you write the grep pattern?
+- Yes → Grep
+- No, you have a question → mcp__morph-mcp__warp_grep
+
+#### Warp Grep Queries (natural language, unknown location)
+"How does the moderation appeals flow work?"
+"Where are websocket connections managed?"
+"What happens when a user submits a post?"
+"Where is rate limiting implemented?"
+"How does the auth session get validated on API routes?"
+"What services touch the moderationDecisions table?"
+
+#### Standard Grep Queries (known pattern, specific target)
+pattern="fileAppeal"                          # known function name
+pattern="class.*Service"                      # structural pattern
+pattern="TODO|FIXME|HACK"                     # markers
+pattern="processenv" path="apps/web"      # specific string
+pattern="import.*from [']@/lib/db"          # import tracing
+
+#### What Warp Grep Does Internally
+One query → 15-30 operations: greps multiple patterns → reads relevant sections → follows imports/references → returns focused line ranges (e.g., l3-guardian.ts:269-440) not whole files.
+
+#### Anti-patterns
+| Don't Use Warp Grep For | Why | Use Instead |
+|------------------------|-----|-------------|
+| "Find function handleSubmit" | Known name | Grep pattern="handleSubmit" |
+| "Read the auth config" | Known file | Read file_path="lib/auth/..." |
+| "Check if X exists" | Boolean answer | Grep + check results |
+| Quick lookups mid-task | 5-10s latency | Grep is 100ms |
+
+#### When Warp Grep Wins
+- Tracing data flow across files (API → service → schema → types)
+- Understanding unfamiliar subsystems before modifying
+- Answering "how" questions that span 3+ files
+- Finding all touching points for a cross-cutting concern
