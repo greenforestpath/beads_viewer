@@ -420,3 +420,41 @@ func TestMethodLabel(t *testing.T) {
 		}
 	}
 }
+
+func TestHistoryModel_GetHistoryForBead(t *testing.T) {
+	report := createTestHistoryReport()
+	theme := testTheme()
+	h := NewHistoryModel(report, theme)
+
+	// Get existing bead history
+	hist := h.GetHistoryForBead("bv-1")
+	if hist == nil {
+		t.Fatal("GetHistoryForBead(bv-1) returned nil")
+	}
+	if hist.BeadID != "bv-1" {
+		t.Errorf("GetHistoryForBead(bv-1).BeadID = %s, want bv-1", hist.BeadID)
+	}
+
+	// Get non-existent bead history
+	histNone := h.GetHistoryForBead("bv-nonexistent")
+	if histNone != nil {
+		t.Error("GetHistoryForBead(bv-nonexistent) should return nil")
+	}
+}
+
+func TestHistoryModel_HasReport(t *testing.T) {
+	theme := testTheme()
+
+	// Without report
+	h := NewHistoryModel(nil, theme)
+	if h.HasReport() {
+		t.Error("HasReport() should return false with nil report")
+	}
+
+	// With report
+	report := createTestHistoryReport()
+	h2 := NewHistoryModel(report, theme)
+	if !h2.HasReport() {
+		t.Error("HasReport() should return true with report")
+	}
+}

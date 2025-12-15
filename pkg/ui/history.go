@@ -250,6 +250,23 @@ func (h *HistoryModel) SelectedCommit() *correlation.CorrelatedCommit {
 	return nil
 }
 
+// GetHistoryForBead returns the history for a specific bead ID
+func (h *HistoryModel) GetHistoryForBead(beadID string) *correlation.BeadHistory {
+	if h.report == nil {
+		return nil
+	}
+	hist, ok := h.report.Histories[beadID]
+	if !ok {
+		return nil
+	}
+	return &hist
+}
+
+// HasReport returns true if history data is loaded
+func (h *HistoryModel) HasReport() bool {
+	return h.report != nil
+}
+
 // View renders the history view
 func (h *HistoryModel) View() string {
 	if h.report == nil {
@@ -474,8 +491,10 @@ func (h *HistoryModel) renderDetailPanel(width, height int) string {
 
 	// Bead info
 	beadInfo := fmt.Sprintf("%s: %s", hist.BeadID, hist.Title)
-	if len(beadInfo) > width-6 {
+	if width > 10 && len(beadInfo) > width-6 {
 		beadInfo = beadInfo[:width-7] + "…"
+	} else if width <= 10 && len(beadInfo) > 5 {
+		beadInfo = beadInfo[:4] + "…"
 	}
 	beadInfoStyle := t.Renderer.NewStyle().Foreground(t.Secondary)
 
@@ -560,8 +579,10 @@ func (h *HistoryModel) renderCommitDetail(commit correlation.CorrelatedCommit, w
 				filenames = append(filenames, f.Path)
 			}
 			fileCount = fmt.Sprintf("    %s", strings.Join(filenames, ", "))
-			if len(fileCount) > width-2 {
+			if width > 6 && len(fileCount) > width-2 {
 				fileCount = fileCount[:width-3] + "…"
+			} else if width <= 6 && len(fileCount) > 5 {
+				fileCount = fileCount[:4] + "…"
 			}
 		}
 		fileStyle := t.Renderer.NewStyle().Foreground(t.Muted)
