@@ -1,8 +1,10 @@
 package export
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -157,6 +159,37 @@ func TestListCloudflareProjects_NoWranglerReturnsError(t *testing.T) {
 func TestDeleteCloudflareProject_RequiresConfirmation(t *testing.T) {
 	if err := DeleteCloudflareProject("proj", false); err == nil {
 		t.Fatal("Expected DeleteCloudflareProject to require confirmation")
+	}
+}
+
+func TestListCloudflareProjects_ParsesOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script stubs not supported on windows in this test")
+	}
+
+	binDir := t.TempDir()
+	wranglerScript := `#!/bin/sh
+set -eu
+if [ "${1-}" = "pages" ] && [ "${2-}" = "project" ] && [ "${3-}" = "list" ]; then
+  echo "Name  Created"
+  echo "----  -------"
+  echo "proj-one  2025-01-01"
+  echo "proj-two  2025-01-02"
+  exit 0
+fi
+exit 1
+`
+	writeExecutable(t, binDir, "wrangler", wranglerScript)
+
+	origPath := os.Getenv("PATH")
+	t.Setenv("PATH", fmt.Sprintf("%s%c%s", binDir, os.PathListSeparator, origPath))
+
+	projects, err := ListCloudflareProjects()
+	if err != nil {
+		t.Fatalf("ListCloudflareProjects returned error: %v", err)
+	}
+	if len(projects) != 2 || projects[0] != "proj-one" || projects[1] != "proj-two" {
+		t.Fatalf("Unexpected projects: %+v", projects)
 	}
 }
 

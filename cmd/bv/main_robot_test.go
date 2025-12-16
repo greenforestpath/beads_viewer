@@ -43,8 +43,38 @@ func TestRobotPlanAndPriorityIncludeMetadata(t *testing.T) {
 		if _, ok := payload["analysis_config"]; !ok {
 			t.Fatalf("%s missing analysis_config", flag)
 		}
-		if _, ok := payload["status"]; !ok {
+		statusAny, ok := payload["status"]
+		if !ok {
 			t.Fatalf("%s missing status", flag)
+		}
+
+		status, ok := statusAny.(map[string]any)
+		if !ok {
+			t.Fatalf("%s status not an object", flag)
+		}
+
+		// Ensure the status contract is usable at process exit (no pending/empty states).
+		expected := []string{"PageRank", "Betweenness", "Eigenvector", "HITS", "Critical", "Cycles", "KCore", "Articulation", "Slack"}
+		for _, metric := range expected {
+			entryAny, ok := status[metric]
+			if !ok {
+				t.Fatalf("%s status missing %s", flag, metric)
+			}
+			entry, ok := entryAny.(map[string]any)
+			if !ok {
+				t.Fatalf("%s status.%s not an object", flag, metric)
+			}
+			stateAny, ok := entry["state"]
+			if !ok {
+				t.Fatalf("%s status.%s missing state", flag, metric)
+			}
+			state, _ := stateAny.(string)
+			if state == "" {
+				t.Fatalf("%s status.%s state empty", flag, metric)
+			}
+			if state == "pending" {
+				t.Fatalf("%s status.%s still pending at exit", flag, metric)
+			}
 		}
 	}
 

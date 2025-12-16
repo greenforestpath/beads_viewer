@@ -155,6 +155,10 @@ func TestRealData_ProjectBeads(t *testing.T) {
 
 	var issues []model.Issue
 	scanner := bufio.NewScanner(bytes.NewReader(content))
+	// Increase buffer for large lines
+	buf := make([]byte, 64*1024)
+	scanner.Buffer(buf, 10*1024*1024)
+
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -164,6 +168,10 @@ func TestRealData_ProjectBeads(t *testing.T) {
 		if err := json.Unmarshal(line, &issue); err == nil {
 			issues = append(issues, issue)
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("Scanner error reading project beads: %v", err)
 	}
 
 	if len(issues) == 0 {
@@ -206,6 +214,9 @@ func TestRealData_Combined(t *testing.T) {
 		content, _ := os.ReadFile(path)
 
 		scanner := bufio.NewScanner(bytes.NewReader(content))
+		// Increase buffer for large lines
+		buf := make([]byte, 64*1024)
+		scanner.Buffer(buf, 10*1024*1024)
 
 		for scanner.Scan() {
 
@@ -217,6 +228,9 @@ func TestRealData_Combined(t *testing.T) {
 
 			}
 
+		}
+		if err := scanner.Err(); err != nil {
+			t.Fatalf("Scanner error reading project beads: %v", err)
 		}
 
 	}

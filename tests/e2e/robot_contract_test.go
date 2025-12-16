@@ -162,7 +162,7 @@ func TestRobotTriageContract(t *testing.T) {
 		Triage      struct {
 			QuickRef struct {
 				TopPicks []struct {
-					ID    string `json:"id"`
+					ID    string  `json:"id"`
 					Score float64 `json:"score"`
 				} `json:"top_picks"`
 			} `json:"quick_ref"`
@@ -198,6 +198,7 @@ func TestRobotUsageHintsPresent(t *testing.T) {
 		{"--robot-insights", "insights"},
 		{"--robot-plan", "plan"},
 		{"--robot-priority", "priority"},
+		{"--robot-suggest", "suggest"},
 		{"--robot-triage", "triage"},
 	}
 
