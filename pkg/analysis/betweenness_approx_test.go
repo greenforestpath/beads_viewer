@@ -19,7 +19,7 @@ func TestApproxBetweenness_SmallGraph(t *testing.T) {
 	}
 
 	analyzer := NewAnalyzer(issues)
-	result := ApproxBetweenness(analyzer.g, 10) // Sample size > node count
+	result := ApproxBetweenness(analyzer.g, 10, 1) // Sample size > node count
 
 	if result.Mode != BetweennessExact {
 		t.Errorf("Expected exact mode for small graph, got %s", result.Mode)
@@ -35,7 +35,7 @@ func TestApproxBetweenness_LargeGraph_Approximate(t *testing.T) {
 	issues := make([]model.Issue, 50)
 	for i := 0; i < 50; i++ {
 		issues[i] = model.Issue{
-			ID:     string(rune('A' + i%26)) + string(rune('0'+i/26)),
+			ID:     string(rune('A'+i%26)) + string(rune('0'+i/26)),
 			Status: model.StatusOpen,
 		}
 		// Create a chain
@@ -47,7 +47,7 @@ func TestApproxBetweenness_LargeGraph_Approximate(t *testing.T) {
 	}
 
 	analyzer := NewAnalyzer(issues)
-	result := ApproxBetweenness(analyzer.g, 10) // Sample size < node count
+	result := ApproxBetweenness(analyzer.g, 10, 1) // Sample size < node count
 
 	if result.Mode != BetweennessApproximate {
 		t.Errorf("Expected approximate mode for large graph with small sample, got %s", result.Mode)
@@ -61,7 +61,7 @@ func TestApproxBetweenness_LargeGraph_Approximate(t *testing.T) {
 func TestApproxBetweenness_EmptyGraph(t *testing.T) {
 	issues := []model.Issue{}
 	analyzer := NewAnalyzer(issues)
-	result := ApproxBetweenness(analyzer.g, 10)
+	result := ApproxBetweenness(analyzer.g, 10, 1)
 
 	if result.TotalNodes != 0 {
 		t.Errorf("Expected 0 nodes, got %d", result.TotalNodes)
@@ -70,16 +70,16 @@ func TestApproxBetweenness_EmptyGraph(t *testing.T) {
 
 func TestRecommendSampleSize(t *testing.T) {
 	tests := []struct {
-		nodeCount int
-		edgeCount int
+		nodeCount   int
+		edgeCount   int
 		minExpected int
 		maxExpected int
 	}{
-		{50, 100, 50, 50},        // Small: use full
-		{100, 200, 50, 100},      // Medium: 20% sample
-		{500, 1000, 100, 100},    // Large: fixed sample
-		{2000, 5000, 200, 200},   // XL: larger fixed sample
-		{5000, 10000, 200, 200},  // XL+: still 200
+		{50, 100, 50, 50},       // Small: use full
+		{100, 200, 50, 100},     // Medium: 20% sample
+		{500, 1000, 100, 100},   // Large: fixed sample
+		{2000, 5000, 200, 200},  // XL: larger fixed sample
+		{5000, 10000, 200, 200}, // XL+: still 200
 	}
 
 	for _, tt := range tests {
@@ -94,13 +94,13 @@ func TestRecommendSampleSize(t *testing.T) {
 func TestBetweennessMode_ConfigIntegration(t *testing.T) {
 	// Test that ConfigForSize properly sets betweenness mode
 	tests := []struct {
-		nodeCount int
-		edgeCount int
+		nodeCount  int
+		edgeCount  int
 		expectMode BetweennessMode
 	}{
-		{50, 100, BetweennessExact},       // Small
-		{200, 400, BetweennessExact},      // Medium
-		{800, 1600, BetweennessApproximate}, // Large (sparse)
+		{50, 100, BetweennessExact},          // Small
+		{200, 400, BetweennessExact},         // Medium
+		{800, 1600, BetweennessApproximate},  // Large (sparse)
 		{3000, 6000, BetweennessApproximate}, // XL
 	}
 
@@ -119,7 +119,7 @@ func BenchmarkApproxBetweenness_500nodes_Exact(b *testing.B) {
 	analyzer := NewAnalyzer(issues)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ApproxBetweenness(analyzer.g, 500) // Full sample = exact
+		ApproxBetweenness(analyzer.g, 500, 42) // Full sample = exact
 	}
 }
 
@@ -128,7 +128,7 @@ func BenchmarkApproxBetweenness_500nodes_Sample100(b *testing.B) {
 	analyzer := NewAnalyzer(issues)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ApproxBetweenness(analyzer.g, 100)
+		ApproxBetweenness(analyzer.g, 100, 42)
 	}
 }
 
@@ -137,7 +137,7 @@ func BenchmarkApproxBetweenness_500nodes_Sample50(b *testing.B) {
 	analyzer := NewAnalyzer(issues)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ApproxBetweenness(analyzer.g, 50)
+		ApproxBetweenness(analyzer.g, 50, 42)
 	}
 }
 

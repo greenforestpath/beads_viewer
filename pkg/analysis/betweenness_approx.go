@@ -62,7 +62,7 @@ type BetweennessResult struct {
 // References:
 //   - "A Faster Algorithm for Betweenness Centrality" (Brandes, 2001)
 //   - "Approximating Betweenness Centrality" (Bader et al., 2007)
-func ApproxBetweenness(g *simple.DirectedGraph, sampleSize int) BetweennessResult {
+func ApproxBetweenness(g *simple.DirectedGraph, sampleSize int, seed int64) BetweennessResult {
 	start := time.Now()
 	nodes := graph.NodesOf(g.Nodes())
 	n := len(nodes)
@@ -90,7 +90,7 @@ func ApproxBetweenness(g *simple.DirectedGraph, sampleSize int) BetweennessResul
 	}
 
 	// Sample k random pivot nodes
-	pivots := sampleNodes(nodes, sampleSize)
+	pivots := sampleNodes(nodes, sampleSize, seed)
 
 	// Compute partial betweenness from sampled pivots only
 	partialBC := make(map[int64]float64)
@@ -112,7 +112,7 @@ func ApproxBetweenness(g *simple.DirectedGraph, sampleSize int) BetweennessResul
 
 // sampleNodes returns a random sample of k nodes from the input slice.
 // Uses Fisher-Yates shuffle for unbiased sampling.
-func sampleNodes(nodes []graph.Node, k int) []graph.Node {
+func sampleNodes(nodes []graph.Node, k int, seed int64) []graph.Node {
 	if k >= len(nodes) {
 		return nodes
 	}
@@ -122,7 +122,7 @@ func sampleNodes(nodes []graph.Node, k int) []graph.Node {
 	copy(shuffled, nodes)
 
 	// Fisher-Yates shuffle for first k elements
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(seed))
 	for i := 0; i < k; i++ {
 		j := i + rng.Intn(len(shuffled)-i)
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]

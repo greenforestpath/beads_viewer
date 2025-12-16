@@ -728,7 +728,7 @@ func (a *Analyzer) computePhase2WithProfile(stats *GraphStats, config AnalysisCo
 			}()
 			// Choose algorithm based on mode
 			if config.BetweennessMode == BetweennessApproximate && config.BetweennessSampleSize > 0 {
-				bwDone <- ApproxBetweenness(a.g, config.BetweennessSampleSize)
+				bwDone <- ApproxBetweenness(a.g, config.BetweennessSampleSize, 1)
 			} else {
 				// Exact mode or mode not set (default to exact)
 				exact := network.Betweenness(a.g)
@@ -1026,7 +1026,7 @@ func (a *Analyzer) computePhase2(stats *GraphStats, config AnalysisConfig) {
 			}()
 			// Choose algorithm based on mode
 			if config.BetweennessMode == BetweennessApproximate && config.BetweennessSampleSize > 0 {
-				bwDone <- ApproxBetweenness(a.g, config.BetweennessSampleSize)
+				bwDone <- ApproxBetweenness(a.g, config.BetweennessSampleSize, 1)
 			} else {
 				// Exact mode or mode not set (default to exact)
 				exact := network.Betweenness(a.g)
