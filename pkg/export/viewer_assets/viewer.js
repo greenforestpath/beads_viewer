@@ -1655,6 +1655,7 @@ function beadsApp() {
     selectedIssue: null,
     showDepGraph: false,
     issueNavList: [], // List of issue IDs for j/k navigation
+    showKeyboardHelp: false, // Keyboard shortcuts help modal
 
     // Graph engine state
     graphReady: false,
@@ -1697,11 +1698,60 @@ function beadsApp() {
         }, 5000);
       });
 
-      // Listen for keyboard shortcuts
+      // Listen for keyboard shortcuts (vim-style navigation)
       window.addEventListener('keydown', (e) => {
-        // 'd' key toggles diagnostics panel (when not in input)
-        if (e.key === 'd' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+        // Skip if typing in input fields
+        const isInput = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
+
+        // '/' focuses search (works globally)
+        if (e.key === '/' && !isInput) {
+          e.preventDefault();
+          const searchInput = document.querySelector('input[x-model="searchQuery"]');
+          if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+          }
+          return;
+        }
+
+        // '?' shows keyboard help
+        if (e.key === '?' && !isInput) {
+          e.preventDefault();
+          this.showKeyboardHelp = true;
+          return;
+        }
+
+        // 'd' toggles diagnostics panel
+        if (e.key === 'd' && !isInput) {
           this.showDiagnostics = !this.showDiagnostics;
+          return;
+        }
+
+        // 'h' navigates to first blocker (blocked-by) - when issue modal open
+        if (e.key === 'h' && !isInput && this.selectedIssue) {
+          const deps = getIssueDependencies(this.selectedIssue.id);
+          if (deps && deps.blockedBy && deps.blockedBy.length > 0) {
+            this.selectIssue(deps.blockedBy[0].id);
+          }
+          return;
+        }
+
+        // 'l' navigates to first dependent (blocks) - when issue modal open
+        if (e.key === 'l' && !isInput && this.selectedIssue) {
+          const deps = getIssueDependencies(this.selectedIssue.id);
+          if (deps && deps.blocks && deps.blocks.length > 0) {
+            this.selectIssue(deps.blocks[0].id);
+          }
+          return;
+        }
+
+        // 'o' opens issue detail in list view (when row is focused)
+        if (e.key === 'o' && !isInput && this.view === 'issues' && !this.selectedIssue) {
+          // Focus the first issue if none selected
+          if (this.issues.length > 0) {
+            this.selectIssue(this.issues[0].id);
+          }
+          return;
         }
       });
 

@@ -1095,7 +1095,7 @@
                        class="text-sm font-mono text-beads-600 dark:text-beads-400 hover:underline"
                        x-text="selectedIssue.id"></a>
                     <span class="hidden sm:inline text-xs text-gray-400 dark:text-gray-500">|</span>
-                    <span class="hidden sm:inline text-xs text-gray-500 dark:text-gray-400">Press <kbd class="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">j</kbd>/<kbd class="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">k</kbd> for prev/next, <kbd class="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">g</kbd> for graph</span>
+                    <span class="hidden sm:inline text-xs text-gray-500 dark:text-gray-400">Press <kbd class="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">j</kbd>/<kbd class="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">k</kbd> next/prev, <kbd class="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">h</kbd>/<kbd class="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">l</kbd> deps, <kbd class="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">?</kbd> help</span>
                   </div>
                   <h2 class="text-xl font-semibold mt-1" x-text="selectedIssue.title"></h2>
                 </div>
@@ -1494,9 +1494,106 @@
         <div>
           <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Shortcuts</h3>
           <div class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-            <div><kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">d</kbd> Toggle diagnostics</div>
-            <div><kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">j</kbd>/<kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">k</kbd> Navigate issues</div>
-            <div><kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">Esc</kbd> Close panels</div>
+            <div><kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">?</kbd> Full help</div>
+            <div><kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">/</kbd> Search</div>
+            <div><kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">d</kbd> Diagnostics</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keyboard Help Modal (press '?' to open) -->
+    <div x-show="showKeyboardHelp"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[60] overflow-y-auto"
+         @keydown.escape.window="showKeyboardHelp = false">
+      <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="fixed inset-0 bg-black/50" @click="showKeyboardHelp = false"></div>
+        <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full">
+          <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Keyboard Shortcuts</h2>
+              <button @click="showKeyboardHelp = false" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="space-y-6">
+              <!-- Global Shortcuts -->
+              <div>
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Global</h3>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                  <div class="flex items-center space-x-2">
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">/</kbd>
+                    <span class="text-gray-600 dark:text-gray-400">Focus search</span>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">?</kbd>
+                    <span class="text-gray-600 dark:text-gray-400">This help</span>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">d</kbd>
+                    <span class="text-gray-600 dark:text-gray-400">Diagnostics</span>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Esc</kbd>
+                    <span class="text-gray-600 dark:text-gray-400">Close modal</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Issue Navigation -->
+              <div>
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Issue Detail</h3>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                  <div class="flex items-center space-x-2">
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">j</kbd>
+                    <span class="text-gray-600 dark:text-gray-400">Next issue</span>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">k</kbd>
+                    <span class="text-gray-600 dark:text-gray-400">Previous issue</span>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">h</kbd>
+                    <span class="text-gray-600 dark:text-gray-400">Go to blocker</span>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">l</kbd>
+                    <span class="text-gray-600 dark:text-gray-400">Go to dependent</span>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">g</kbd>
+                    <span class="text-gray-600 dark:text-gray-400">Toggle graph</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Issue List -->
+              <div>
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Issue List</h3>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                  <div class="flex items-center space-x-2">
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">o</kbd>
+                    <span class="text-gray-600 dark:text-gray-400">Open first issue</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tips -->
+              <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  <strong>Tip:</strong> Use <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">h</kbd> and <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">l</kbd> to traverse the dependency chain. Navigate "left" to blockers and "right" to dependents.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
