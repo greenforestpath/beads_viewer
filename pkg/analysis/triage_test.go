@@ -150,9 +150,9 @@ func TestComputeTriageWithOptions(t *testing.T) {
 	}
 
 	opts := TriageOptions{
-		TopN:       5,
-		QuickWinN:  3,
-		BlockerN:   2,
+		TopN:      5,
+		QuickWinN: 3,
+		BlockerN:  2,
 	}
 
 	triage := ComputeTriageWithOptions(issues, opts)
@@ -252,6 +252,26 @@ func TestTriageWithCycles(t *testing.T) {
 	}
 }
 
+func TestProjectVelocityComputed(t *testing.T) {
+	now := time.Date(2025, 12, 16, 0, 0, 0, 0, time.UTC)
+	closed := now.Add(-3 * 24 * time.Hour)
+	issues := []model.Issue{
+		{ID: "A", Status: model.StatusClosed, CreatedAt: now.Add(-10 * 24 * time.Hour), ClosedAt: &closed},
+		{ID: "B", Status: model.StatusOpen},
+	}
+	triage := ComputeTriageWithOptionsAndTime(issues, TriageOptions{}, now)
+	if triage.ProjectHealth.Velocity == nil {
+		t.Fatalf("expected velocity data")
+	}
+	v := triage.ProjectHealth.Velocity
+	if v.ClosedLast7Days != 1 || len(v.Weekly) == 0 {
+		t.Fatalf("unexpected velocity %+v", v)
+	}
+	if v.AvgDaysToClose <= 0 {
+		t.Fatalf("expected avg days to close > 0, got %.2f", v.AvgDaysToClose)
+	}
+}
+
 func TestTriageEmptyCommands(t *testing.T) {
 	// When there are no open issues, commands should be gracefully handled
 	issues := []model.Issue{
@@ -291,7 +311,7 @@ func TestTriageInProgressAction(t *testing.T) {
 		daysOld        int
 		expectedAction string
 	}{
-		{"fresh in_progress", 5, "work"},      // < 9 days (0.3 * 30)
+		{"fresh in_progress", 5, "work"},       // < 9 days (0.3 * 30)
 		{"moderate in_progress", 12, "review"}, // > 9 days, < 15 days
 		{"stale in_progress", 20, "review"},    // > 15 days (0.5 * 30)
 	}
@@ -372,10 +392,10 @@ func TestComputeTriageScores_WithUnblocks(t *testing.T) {
 	issues := []model.Issue{
 		{ID: "blocker", Title: "Blocker", Status: model.StatusOpen, Priority: 1, UpdatedAt: time.Now()},
 		{
-			ID:       "blocked",
-			Title:    "Blocked",
-			Status:   model.StatusOpen,
-			Priority: 0,
+			ID:        "blocked",
+			Title:     "Blocked",
+			Status:    model.StatusOpen,
+			Priority:  0,
 			UpdatedAt: time.Now(),
 			Dependencies: []*model.Dependency{
 				{DependsOnID: "blocker", Type: model.DepBlocks},
@@ -781,8 +801,8 @@ func TestGenerateTriageReasons_GraphMetrics(t *testing.T) {
 	ctx := TriageReasonContext{
 		TriageScore: &TriageScore{
 			Breakdown: ScoreBreakdown{
-				PageRankNorm:    0.5,  // Above 0.3 threshold
-				BetweennessNorm: 0.7,  // Above 0.5 threshold
+				PageRankNorm:    0.5, // Above 0.3 threshold
+				BetweennessNorm: 0.7, // Above 0.5 threshold
 			},
 		},
 	}
@@ -837,10 +857,10 @@ func TestGenerateTriageReasonsForScore(t *testing.T) {
 			UpdatedAt: time.Now().Add(-10 * 24 * time.Hour), // 10 days old
 		},
 		{
-			ID:       "blocked",
-			Title:    "Blocked",
-			Status:   model.StatusOpen,
-			Priority: 2,
+			ID:        "blocked",
+			Title:     "Blocked",
+			Status:    model.StatusOpen,
+			Priority:  2,
 			UpdatedAt: time.Now(),
 			Dependencies: []*model.Dependency{
 				{DependsOnID: "blocker", Type: model.DepBlocks},

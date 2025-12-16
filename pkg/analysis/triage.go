@@ -11,23 +11,23 @@ import (
 // TriageResult is the unified output for --robot-triage
 // Designed as a single entry point for AI agents to get everything they need
 type TriageResult struct {
-	Meta            TriageMeta         `json:"meta"`
-	QuickRef        QuickRef           `json:"quick_ref"`
-	Recommendations []Recommendation   `json:"recommendations"`
-	QuickWins       []QuickWin         `json:"quick_wins"`
-	BlockersToClear []BlockerItem      `json:"blockers_to_clear"`
-	ProjectHealth   ProjectHealth      `json:"project_health"`
-	Alerts          []Alert            `json:"alerts,omitempty"`
-	Commands        CommandHelpers     `json:"commands"`
+	Meta            TriageMeta       `json:"meta"`
+	QuickRef        QuickRef         `json:"quick_ref"`
+	Recommendations []Recommendation `json:"recommendations"`
+	QuickWins       []QuickWin       `json:"quick_wins"`
+	BlockersToClear []BlockerItem    `json:"blockers_to_clear"`
+	ProjectHealth   ProjectHealth    `json:"project_health"`
+	Alerts          []Alert          `json:"alerts,omitempty"`
+	Commands        CommandHelpers   `json:"commands"`
 }
 
 // TriageMeta contains metadata about the triage computation
 type TriageMeta struct {
-	Version      string    `json:"version"`
-	GeneratedAt  time.Time `json:"generated_at"`
-	Phase2Ready  bool      `json:"phase2_ready"`
-	IssueCount   int       `json:"issue_count"`
-	ComputeTimeMs int64    `json:"compute_time_ms"`
+	Version       string    `json:"version"`
+	GeneratedAt   time.Time `json:"generated_at"`
+	Phase2Ready   bool      `json:"phase2_ready"`
+	IssueCount    int       `json:"issue_count"`
+	ComputeTimeMs int64     `json:"compute_time_ms"`
 }
 
 // QuickRef provides at-a-glance summary for fast decisions
@@ -58,7 +58,7 @@ type Recommendation struct {
 	Labels      []string       `json:"labels"`
 	Score       float64        `json:"score"`
 	Breakdown   ScoreBreakdown `json:"breakdown"`
-	Action      string         `json:"action"`   // "work", "review", "unblock"
+	Action      string         `json:"action"` // "work", "review", "unblock"
 	Reasons     []string       `json:"reasons"`
 	UnblocksIDs []string       `json:"unblocks_ids,omitempty"`
 	BlockedBy   []string       `json:"blocked_by,omitempty"`
@@ -66,10 +66,10 @@ type Recommendation struct {
 
 // QuickWin represents a low-effort, high-impact item
 type QuickWin struct {
-	ID          string  `json:"id"`
-	Title       string  `json:"title"`
-	Score       float64 `json:"score"`
-	Reason      string  `json:"reason"`
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	Score       float64  `json:"score"`
+	Reason      string   `json:"reason"`
 	UnblocksIDs []string `json:"unblocks_ids,omitempty"`
 }
 
@@ -85,10 +85,10 @@ type BlockerItem struct {
 
 // ProjectHealth provides overall project status
 type ProjectHealth struct {
-	Counts     HealthCounts `json:"counts"`
-	Graph      GraphHealth  `json:"graph"`
-	Velocity   *Velocity    `json:"velocity,omitempty"`   // nil until labels view ready
-	Staleness  *Staleness   `json:"staleness,omitempty"`  // nil until history ready
+	Counts    HealthCounts `json:"counts"`
+	Graph     GraphHealth  `json:"graph"`
+	Velocity  *Velocity    `json:"velocity,omitempty"`  // nil until labels view ready
+	Staleness *Staleness   `json:"staleness,omitempty"` // nil until history ready
 }
 
 // HealthCounts is basic issue statistics
@@ -105,45 +105,162 @@ type HealthCounts struct {
 
 // GraphHealth summarizes dependency graph metrics
 type GraphHealth struct {
-	NodeCount    int     `json:"node_count"`
-	EdgeCount    int     `json:"edge_count"`
-	Density      float64 `json:"density"`
-	HasCycles    bool    `json:"has_cycles"`
-	CycleCount   int     `json:"cycle_count,omitempty"`
-	Phase2Ready  bool    `json:"phase2_ready"`
+	NodeCount   int     `json:"node_count"`
+	EdgeCount   int     `json:"edge_count"`
+	Density     float64 `json:"density"`
+	HasCycles   bool    `json:"has_cycles"`
+	CycleCount  int     `json:"cycle_count,omitempty"`
+	Phase2Ready bool    `json:"phase2_ready"`
 }
 
 // Velocity tracks work completion rate (future: from labels view)
 type Velocity struct {
-	ClosedLast7Days  int     `json:"closed_last_7_days"`
-	ClosedLast30Days int     `json:"closed_last_30_days"`
-	AvgDaysToClose   float64 `json:"avg_days_to_close"`
+	ClosedLast7Days  int            `json:"closed_last_7_days"`
+	ClosedLast30Days int            `json:"closed_last_30_days"`
+	AvgDaysToClose   float64        `json:"avg_days_to_close"`
+	Weekly           []VelocityWeek `json:"weekly,omitempty"`    // Buckets of closed issues per ISO week
+	Estimated        bool           `json:"estimated,omitempty"` // True when computed from current snapshot only
+}
+
+// VelocityWeek captures closure count for a single week (UTC-based).
+type VelocityWeek struct {
+	WeekStart time.Time `json:"week_start"`
+	Closed    int       `json:"closed"`
+}
+
+// computeProjectVelocity rolls up closure velocity for the whole project.
+// It looks back `weeks` ISO weeks (default 8) using closed_at timestamps when
+// available; if missing, it marks the result as estimated.
+func computeProjectVelocity(issues []model.Issue, now time.Time, weeks int) *Velocity {
+	if weeks <= 0 {
+		weeks = 8
+	}
+
+	// Group closures by ISO week starting Monday.
+	weekBuckets := make(map[time.Time]int)
+	closedLast7, closedLast30 := 0, 0
+	var totalCloseDur time.Duration
+	var closeSamples int
+	estimated := false
+
+	weekAgo := now.Add(-7 * 24 * time.Hour)
+	monthAgo := now.Add(-30 * 24 * time.Hour)
+
+	for _, iss := range issues {
+		if iss.Status != model.StatusClosed {
+			continue
+		}
+
+		closedAt := time.Time{}
+		switch {
+		case iss.ClosedAt != nil:
+			closedAt = iss.ClosedAt.UTC()
+		case !iss.UpdatedAt.IsZero():
+			// Fallback: approximate closure using updated_at when closed_at missing
+			closedAt = iss.UpdatedAt.UTC()
+			estimated = true
+		default:
+			// Last resort: approximate with now; counts become estimated
+			closedAt = now
+			estimated = true
+		}
+
+		// Count rolling windows
+		if closedAt.After(weekAgo) {
+			closedLast7++
+		}
+		if closedAt.After(monthAgo) {
+			closedLast30++
+		}
+
+		// Bucket by ISO week
+		year, week := closedAt.ISOWeek()
+		// Reconstruct the Monday of that ISO week
+		weekStart := isoWeekStart(year, week)
+		weekBuckets[weekStart]++
+
+		// Average time-to-close if created date present
+		if !iss.CreatedAt.IsZero() {
+			totalCloseDur += closedAt.Sub(iss.CreatedAt)
+			closeSamples++
+		}
+	}
+
+	// Build ordered weekly slices (newest first)
+	weekly := make([]VelocityWeek, 0, weeks)
+	cursor := truncateToMonday(now)
+	for i := 0; i < weeks; i++ {
+		count := weekBuckets[cursor]
+		weekly = append(weekly, VelocityWeek{
+			WeekStart: cursor,
+			Closed:    count,
+		})
+		cursor = cursor.Add(-7 * 24 * time.Hour)
+	}
+
+	avgDays := 0.0
+	if closeSamples > 0 {
+		avgDays = totalCloseDur.Hours() / 24.0 / float64(closeSamples)
+	}
+
+	return &Velocity{
+		ClosedLast7Days:  closedLast7,
+		ClosedLast30Days: closedLast30,
+		AvgDaysToClose:   avgDays,
+		Weekly:           weekly,
+		Estimated:        estimated,
+	}
+}
+
+// isoWeekStart returns the Monday (00:00 UTC) for the given ISO year/week.
+func isoWeekStart(year, isoWeek int) time.Time {
+	// Start from Jan 4th which is always in week 1, then move to requested week.
+	t := time.Date(year, time.January, 4, 0, 0, 0, 0, time.UTC)
+	_, isoW := t.ISOWeek()
+	// Shift to Monday of that week (t currently Jan 4). Weekday can be Sunday -> negative.
+	offset := int(time.Monday - t.Weekday())
+	if offset > 0 { // Sunday should go back 6 days, not forward
+		offset -= 7
+	}
+	t = t.AddDate(0, 0, offset)
+	weekDelta := isoWeek - isoW
+	return t.AddDate(0, 0, weekDelta*7)
+}
+
+// truncateToMonday normalizes a time to Monday 00:00 UTC of its ISO week.
+func truncateToMonday(t time.Time) time.Time {
+	t = t.UTC()
+	offset := int(time.Monday - t.Weekday())
+	if offset > 0 { // Sunday adjustment
+		offset -= 7
+	}
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, offset)
 }
 
 // Staleness tracks stale issues (future: from history)
 type Staleness struct {
-	StaleCount       int      `json:"stale_count"`        // Issues with no activity > threshold
-	StalestIssueID   string   `json:"stalest_issue_id"`
-	StalestIssueDays int      `json:"stalest_issue_days"`
-	ThresholdDays    int      `json:"threshold_days"`
+	StaleCount       int    `json:"stale_count"` // Issues with no activity > threshold
+	StalestIssueID   string `json:"stalest_issue_id"`
+	StalestIssueDays int    `json:"stalest_issue_days"`
+	ThresholdDays    int    `json:"threshold_days"`
 }
 
 // Alert represents a proactive warning (future: from alerts engine)
 type Alert struct {
-	Type     string `json:"type"`     // "stale", "velocity_drop", "cycle", "duplicate"
-	Severity string `json:"severity"` // "info", "warning", "error"
-	Message  string `json:"message"`
-	IssueID  string `json:"issue_id,omitempty"`
+	Type     string   `json:"type"`     // "stale", "velocity_drop", "cycle", "duplicate"
+	Severity string   `json:"severity"` // "info", "warning", "error"
+	Message  string   `json:"message"`
+	IssueID  string   `json:"issue_id,omitempty"`
 	IssueIDs []string `json:"issue_ids,omitempty"`
 }
 
 // CommandHelpers provides copy-paste commands for common actions
 type CommandHelpers struct {
-	ClaimTop       string `json:"claim_top"`        // bd update <id> --status=in_progress
-	ShowTop        string `json:"show_top"`         // bd show <id>
-	ListReady      string `json:"list_ready"`       // bd ready
-	ListBlocked    string `json:"list_blocked"`     // bd blocked
-	RefreshTriage  string `json:"refresh_triage"`   // bv --robot-triage
+	ClaimTop      string `json:"claim_top"`      // bd update <id> --status=in_progress
+	ShowTop       string `json:"show_top"`       // bd show <id>
+	ListReady     string `json:"list_ready"`     // bd ready
+	ListBlocked   string `json:"list_blocked"`   // bd blocked
+	RefreshTriage string `json:"refresh_triage"` // bv --robot-triage
 }
 
 // ComputeTriage generates a unified triage result from issues
@@ -153,14 +270,19 @@ func ComputeTriage(issues []model.Issue) TriageResult {
 
 // TriageOptions configures triage computation
 type TriageOptions struct {
-	TopN           int  // Number of recommendations (default 10)
-	QuickWinN      int  // Number of quick wins (default 5)
-	BlockerN       int  // Number of blockers to show (default 5)
-	WaitForPhase2  bool // Block until Phase 2 metrics ready
+	TopN          int  // Number of recommendations (default 10)
+	QuickWinN     int  // Number of quick wins (default 5)
+	BlockerN      int  // Number of blockers to show (default 5)
+	WaitForPhase2 bool // Block until Phase 2 metrics ready
 }
 
 // ComputeTriageWithOptions generates triage with custom options
 func ComputeTriageWithOptions(issues []model.Issue, opts TriageOptions) TriageResult {
+	return ComputeTriageWithOptionsAndTime(issues, opts, time.Now())
+}
+
+// ComputeTriageWithOptionsAndTime generates triage with a deterministic clock (testing).
+func ComputeTriageWithOptionsAndTime(issues []model.Issue, opts TriageOptions, now time.Time) TriageResult {
 	start := time.Now()
 
 	// Set defaults
@@ -183,7 +305,7 @@ func ComputeTriageWithOptions(issues []model.Issue, opts TriageOptions) TriageRe
 	stats.WaitForPhase2()
 
 	// Compute impact scores using the already-computed stats
-	impactScores := analyzer.ComputeImpactScoresFromStats(stats, time.Now())
+	impactScores := analyzer.ComputeImpactScoresFromStats(stats, now)
 
 	// Get execution plan for unblock analysis (currently unused but kept for future phases)
 	_ = analyzer.GetExecutionPlan()
@@ -194,8 +316,11 @@ func ComputeTriageWithOptions(issues []model.Issue, opts TriageOptions) TriageRe
 	// Compute counts
 	counts := computeCounts(issues, analyzer)
 
-	// Build recommendations
-	recommendations := buildRecommendations(impactScores, analyzer, unblocksMap, opts.TopN)
+	// Compute enhanced triage scores (bv-147)
+	triageScores := computeTriageScoresFromImpact(impactScores, unblocksMap, analyzer, DefaultTriageScoringOptions())
+
+	// Build recommendations using enhanced scores (bv-148)
+	recommendations := buildRecommendationsFromTriageScores(triageScores, analyzer, unblocksMap, opts.TopN)
 
 	// Build quick wins
 	quickWins := buildQuickWins(impactScores, unblocksMap, opts.QuickWinN)
@@ -213,11 +338,12 @@ func ComputeTriageWithOptions(issues []model.Issue, opts TriageOptions) TriageRe
 	}
 
 	elapsed := time.Since(start)
+	projectVelocity := computeProjectVelocity(issues, now.UTC(), 8)
 
 	return TriageResult{
 		Meta: TriageMeta{
 			Version:       "1.0.0",
-			GeneratedAt:   time.Now(),
+			GeneratedAt:   now,
 			Phase2Ready:   stats.IsPhase2Ready(),
 			IssueCount:    len(issues),
 			ComputeTimeMs: elapsed.Milliseconds(),
@@ -233,9 +359,10 @@ func ComputeTriageWithOptions(issues []model.Issue, opts TriageOptions) TriageRe
 		QuickWins:       quickWins,
 		BlockersToClear: blockersToClear,
 		ProjectHealth: ProjectHealth{
-			Counts: counts,
-			Graph:  buildGraphHealth(stats),
-			// Velocity and Staleness are nil until those features are implemented
+			Counts:   counts,
+			Graph:    buildGraphHealth(stats),
+			Velocity: projectVelocity,
+			// Staleness remains nil until history integration is ready
 		},
 		Commands: buildCommands(topID),
 	}
@@ -304,8 +431,47 @@ func buildRecommendations(scores []ImpactScore, analyzer *Analyzer, unblocksMap 
 		// Determine action and reasons
 		action, reasons := determineAction(score, unblocksMap[score.IssueID], issue)
 
-		// Get labels (already strings in model.Issue)
-		labels := issue.Labels
+		// Get blocked by
+		blockedBy := analyzer.GetOpenBlockers(score.IssueID)
+
+		rec := Recommendation{
+			ID:          score.IssueID,
+			Title:       score.Title,
+			Type:        string(issue.IssueType),
+			Status:      score.Status,
+			Priority:    score.Priority,
+			Labels:      issue.Labels,
+			Score:       score.Score,
+			Breakdown:   score.Breakdown,
+			Action:      action,
+			Reasons:     reasons,
+			UnblocksIDs: unblocksMap[score.IssueID],
+		}
+		if len(blockedBy) > 0 {
+			rec.BlockedBy = blockedBy
+		}
+
+		recommendations = append(recommendations, rec)
+	}
+
+	return recommendations
+}
+
+// buildRecommendationsFromTriageScores creates recommendations using enhanced triage scores
+func buildRecommendationsFromTriageScores(scores []TriageScore, analyzer *Analyzer, unblocksMap map[string][]string, limit int) []Recommendation {
+	if len(scores) > limit {
+		scores = scores[:limit]
+	}
+
+	recommendations := make([]Recommendation, 0, len(scores))
+	for _, score := range scores {
+		issue := analyzer.GetIssue(score.IssueID)
+		if issue == nil {
+			continue
+		}
+
+		// Generate reasons using the new logic
+		reasons := GenerateTriageReasonsForScore(score, analyzer, unblocksMap)
 
 		// Get blocked by
 		blockedBy := analyzer.GetOpenBlockers(score.IssueID)
@@ -316,11 +482,11 @@ func buildRecommendations(scores []ImpactScore, analyzer *Analyzer, unblocksMap 
 			Type:        string(issue.IssueType),
 			Status:      score.Status,
 			Priority:    score.Priority,
-			Labels:      labels,
-			Score:       score.Score,
+			Labels:      issue.Labels,
+			Score:       score.TriageScore,
 			Breakdown:   score.Breakdown,
-			Action:      action,
-			Reasons:     reasons,
+			Action:      reasons.ActionHint,
+			Reasons:     reasons.All,
 			UnblocksIDs: unblocksMap[score.IssueID],
 		}
 		if len(blockedBy) > 0 {
@@ -395,8 +561,8 @@ func buildQuickWins(scores []ImpactScore, unblocksMap map[string][]string, limit
 	// Heuristic: items that unblock others but have low blocker ratio themselves
 
 	type candidate struct {
-		score   ImpactScore
-		unblocks []string
+		score         ImpactScore
+		unblocks      []string
 		quickWinScore float64
 	}
 
@@ -574,11 +740,11 @@ type TriageScore struct {
 
 // TriageFactors holds the triage-specific score modifiers
 type TriageFactors struct {
-	UnblockBoost    float64 `json:"unblock_boost"`              // Boost for items that unblock many others
-	QuickWinBoost   float64 `json:"quick_win_boost"`            // Boost for low-effort high-impact items
-	LabelHealth     float64 `json:"label_health,omitempty"`     // Phase 2: Label health factor
-	ClaimPenalty    float64 `json:"claim_penalty,omitempty"`    // Phase 3: Penalty for claimed items
-	AttentionScore  float64 `json:"attention_score,omitempty"`  // Phase 4: Attention-weighted health
+	UnblockBoost   float64 `json:"unblock_boost"`             // Boost for items that unblock many others
+	QuickWinBoost  float64 `json:"quick_win_boost"`           // Boost for low-effort high-impact items
+	LabelHealth    float64 `json:"label_health,omitempty"`    // Phase 2: Label health factor
+	ClaimPenalty   float64 `json:"claim_penalty,omitempty"`   // Phase 3: Penalty for claimed items
+	AttentionScore float64 `json:"attention_score,omitempty"` // Phase 4: Attention-weighted health
 }
 
 // TriageScoringOptions configures triage scoring behavior
@@ -589,8 +755,8 @@ type TriageScoringOptions struct {
 	QuickWinWeight     float64 // Default 0.15
 
 	// Thresholds
-	UnblockThreshold int     // Min unblocks to get full boost (default 5)
-	QuickWinMaxDepth int     // Max dependency depth for quick win (default 2)
+	UnblockThreshold int // Min unblocks to get full boost (default 5)
+	QuickWinMaxDepth int // Max dependency depth for quick win (default 2)
 
 	// Feature flags (for graceful degradation)
 	EnableLabelHealth    bool   // Phase 2 feature
@@ -632,6 +798,11 @@ func ComputeTriageScoresWithOptions(issues []model.Issue, opts TriageScoringOpti
 	// Build unblocks map for factor calculation
 	unblocksMap := buildUnblocksMap(analyzer, issues)
 
+	return computeTriageScoresFromImpact(baseScores, unblocksMap, analyzer, opts)
+}
+
+// computeTriageScoresFromImpact calculates triage scores from base impact scores
+func computeTriageScoresFromImpact(baseScores []ImpactScore, unblocksMap map[string][]string, analyzer *Analyzer, opts TriageScoringOptions) []TriageScore {
 	// Calculate max unblocks for normalization
 	maxUnblocks := 0
 	for _, unblocks := range unblocksMap {
@@ -679,15 +850,17 @@ func computeSingleTriageScore(base ImpactScore, unblocksMap map[string][]string,
 	// Calculate quick-win boost
 	// Quick wins are items with low blocker depth but high impact
 	blockerDepth := analyzer.GetBlockerDepth(base.IssueID)
-	if blockerDepth <= opts.QuickWinMaxDepth && blockerDepth >= 0 {
-		// Lower depth = higher quick win potential
-		depthFactor := 1.0 - float64(blockerDepth)/float64(opts.QuickWinMaxDepth+1)
-		// Combine with base score for impact consideration
-		factors.QuickWinBoost = depthFactor * base.Score * opts.QuickWinWeight
-		if factors.QuickWinBoost > opts.QuickWinWeight {
-			factors.QuickWinBoost = opts.QuickWinWeight // Cap at max weight
+	if issue := analyzer.GetIssue(base.IssueID); issue == nil || issue.Status != model.StatusInProgress {
+		if blockerDepth <= opts.QuickWinMaxDepth && blockerDepth >= 0 {
+			// Lower depth = higher quick win potential
+			depthFactor := 1.0 - float64(blockerDepth)/float64(opts.QuickWinMaxDepth+1)
+			// Combine with base score for impact consideration
+			factors.QuickWinBoost = depthFactor * base.Score * opts.QuickWinWeight
+			if factors.QuickWinBoost > opts.QuickWinWeight {
+				factors.QuickWinBoost = opts.QuickWinWeight // Cap at max weight
+			}
+			applied = append(applied, "quick_win")
 		}
-		applied = append(applied, "quick_win")
 	}
 
 	// Track pending features
@@ -728,10 +901,14 @@ func computeSingleTriageScore(base ImpactScore, unblocksMap map[string][]string,
 // Returns -1 if the issue is part of a cycle
 func (a *Analyzer) GetBlockerDepth(issueID string) int {
 	visited := make(map[string]bool)
-	return a.getBlockerDepthRecursive(issueID, visited, 0)
+	memo := make(map[string]int)
+	return a.getBlockerDepthRecursive(issueID, visited, memo)
 }
 
-func (a *Analyzer) getBlockerDepthRecursive(issueID string, visited map[string]bool, depth int) int {
+func (a *Analyzer) getBlockerDepthRecursive(issueID string, visited map[string]bool, memo map[string]int) int {
+	if val, ok := memo[issueID]; ok {
+		return val
+	}
 	if visited[issueID] {
 		return -1 // Cycle detected
 	}
@@ -739,21 +916,28 @@ func (a *Analyzer) getBlockerDepthRecursive(issueID string, visited map[string]b
 
 	blockers := a.GetOpenBlockers(issueID)
 	if len(blockers) == 0 {
-		return depth
+		visited[issueID] = false
+		memo[issueID] = 0
+		return 0
 	}
 
-	maxDepth := depth
+	maxChain := 0
 	for _, blockerID := range blockers {
-		blockerDepth := a.getBlockerDepthRecursive(blockerID, visited, depth+1)
-		if blockerDepth == -1 {
-			return -1 // Propagate cycle
+		depth := a.getBlockerDepthRecursive(blockerID, visited, memo)
+		if depth == -1 {
+			visited[issueID] = false
+			// Do not memoize cycle results to allow other paths to be checked?
+			// Actually if a cycle is reachable, it's a cycle.
+			return -1
 		}
-		if blockerDepth > maxDepth {
-			maxDepth = blockerDepth
+		if depth+1 > maxChain {
+			maxChain = depth + 1
 		}
 	}
 
-	return maxDepth
+	visited[issueID] = false
+	memo[issueID] = maxChain
+	return maxChain
 }
 
 // maxOf returns the maximum of two integers
@@ -793,8 +977,8 @@ type TriageReasonContext struct {
 
 // TriageReasons contains all generated reasons for an issue
 type TriageReasons struct {
-	Primary    string   `json:"primary"`    // Single most important reason
-	All        []string `json:"all"`        // All reasons in priority order
+	Primary    string   `json:"primary"`     // Single most important reason
+	All        []string `json:"all"`         // All reasons in priority order
 	ActionHint string   `json:"action_hint"` // Suggested next action
 }
 
@@ -804,6 +988,9 @@ func GenerateTriageReasons(ctx TriageReasonContext) TriageReasons {
 	var reasons []string
 	primary := ""
 	actionHint := "Start work on this issue"
+	if ctx.Issue != nil && ctx.Issue.Status == model.StatusInProgress {
+		actionHint = "work"
+	}
 
 	// 1. Unblock cascade (highest priority - most actionable)
 	if len(ctx.UnblocksIDs) >= 3 {
@@ -851,11 +1038,14 @@ func GenerateTriageReasons(ctx TriageReasonContext) TriageReasons {
 		reason := fmt.Sprintf("🕐 No activity in %d days - may need review", ctx.DaysSinceUpdate)
 		reasons = append(reasons, reason)
 		if ctx.Issue != nil && ctx.Issue.Status == model.StatusInProgress {
-			actionHint = "Check if this is stuck and needs help"
+			actionHint = "review"
 		}
 	} else if ctx.DaysSinceUpdate > 7 {
 		reason := fmt.Sprintf("📅 Last updated %d days ago", ctx.DaysSinceUpdate)
 		reasons = append(reasons, reason)
+		if ctx.Issue != nil && ctx.Issue.Status == model.StatusInProgress {
+			actionHint = "review"
+		}
 	}
 
 	// 5. Quick-win identification
@@ -865,7 +1055,13 @@ func GenerateTriageReasons(ctx TriageReasonContext) TriageReasons {
 		if primary == "" && len(ctx.UnblocksIDs) > 0 {
 			primary = reason
 		}
-		actionHint = "Quick win - start here for fast progress"
+
+		// Update action hint unless in-progress (keep work/review guidance) or critically stale
+		isInProgress := ctx.Issue != nil && ctx.Issue.Status == model.StatusInProgress
+		isCriticalStale := isInProgress && ctx.DaysSinceUpdate > 14
+		if !isInProgress && !isCriticalStale {
+			actionHint = "Quick win - start here for fast progress"
+		}
 	}
 
 	// 6. Agent claim status
@@ -915,10 +1111,10 @@ func formatUnblockList(ids []string) string {
 	if len(ids) == 0 {
 		return ""
 	}
-    if len(ids) <= 3 {
-        // joinStrings is defined in diff.go
-        return joinStrings(ids, ", ")
-    }
+	if len(ids) <= 3 {
+		// joinStrings is defined in diff.go
+		return joinStrings(ids, ", ")
+	}
 	return fmt.Sprintf("%s, %s, +%d more", ids[0], ids[1], len(ids)-2)
 }
 

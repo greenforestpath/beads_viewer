@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"sort"
+	"time"
 )
 
 // InsightItem represents a single item in an insight list with its metric value
@@ -23,9 +24,20 @@ type Insights struct {
 	Orphans        []string      // No dependencies (and not blocked?) - Leaf nodes
 	Cycles         [][]string
 	ClusterDensity float64
+	Velocity       *VelocitySnapshot
 
 	// Full stats for calculation explanations
 	Stats *GraphStats
+}
+
+// VelocitySnapshot is a lightweight view of project throughput for insights.
+type VelocitySnapshot struct {
+	Closed7    int         `json:"closed_last_7_days"`
+	Closed30   int         `json:"closed_last_30_days"`
+	AvgDays    float64     `json:"avg_days_to_close"`
+	Weekly     []int       `json:"weekly,omitempty"` // counts, newest first
+	Estimated  bool        `json:"estimated,omitempty"`
+	WeekStarts []time.Time `json:"week_starts,omitempty"`
 }
 
 // GenerateInsights translates raw stats into actionable data
@@ -42,6 +54,9 @@ func (s *GraphStats) GenerateInsights(limit int) Insights {
 	slack := s.Slack()
 	cycles := s.Cycles()
 
+	// Velocity snapshot (populated later when triage provides it)
+	var velocity *VelocitySnapshot
+
 	if limit <= 0 {
 		limit = len(pageRank) // use full set; maps all share same key set
 	}
@@ -57,6 +72,7 @@ func (s *GraphStats) GenerateInsights(limit int) Insights {
 		Slack:          getTopItems(slack, limit),
 		Cycles:         cycles,
 		ClusterDensity: s.Density,
+		Velocity:       velocity,
 		Stats:          s,
 	}
 }

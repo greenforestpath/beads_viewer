@@ -96,13 +96,23 @@ func (a *Analyzer) ComputeImpactScoresFromStats(stats *GraphStats, now time.Time
 	betweenness := stats.Betweenness()
 	criticalPath := stats.CriticalPathScore()
 
+	// Precompute blocker counts directly from dependencies to avoid relying on graph direction nuances.
+	blockerCounts := make(map[string]int)
+	for id := range a.issueMap {
+		blockerCounts[id] = 0
+	}
+	for _, issue := range a.issueMap {
+		for _, dep := range issue.Dependencies {
+			if dep != nil && dep.Type.IsBlocking() {
+				blockerCounts[dep.DependsOnID]++
+			}
+		}
+	}
+
 	// Find max values for normalization
 	maxPR := findMax(pageRank)
 	maxBW := findMax(betweenness)
-	maxBlockers := findMaxInt(stats.InDegree)
-	if maxBlockers == 0 {
-		maxBlockers = 1 // avoid divide-by-zero; normalize to 0 when no blockers exist
-	}
+	maxBlockers := findMaxInt(blockerCounts)
 
 	// Compute median estimated minutes for issues without estimates
 	medianMinutes := a.computeMedianEstimatedMinutes()
@@ -118,7 +128,7 @@ func (a *Analyzer) ComputeImpactScoresFromStats(stats *GraphStats, now time.Time
 		// Normalize metrics to 0-1
 		prNorm := normalize(pageRank[id], maxPR)
 		bwNorm := normalize(betweenness[id], maxBW)
-		blockerNorm := normalizeInt(stats.InDegree[id], maxBlockers)
+		blockerNorm := normalizeInt(blockerCounts[id], maxBlockers)
 		stalenessNorm := computeStaleness(issue.UpdatedAt, now)
 		priorityNorm := computePriorityBoost(issue.Priority)
 
