@@ -46,11 +46,6 @@ func main() {
 	robotMaxResults := flag.Int("robot-max-results", 0, "Limit robot output count (0 = use defaults)")
 	robotByLabel := flag.String("robot-by-label", "", "Filter robot outputs by label (exact match)")
 	robotByAssignee := flag.String("robot-by-assignee", "", "Filter robot outputs by assignee (exact match)")
-	// Prevent unused warnings until filters are fully wired (bv-84).
-	_ = robotMinConf
-	_ = robotMaxResults
-	_ = robotByLabel
-	_ = robotByAssignee
 	recipeName := flag.String("recipe", "", "Apply named recipe (e.g., triage, actionable, high-impact)")
 	recipeShort := flag.String("r", "", "Shorthand for --recipe")
 	diffSince := flag.String("diff-since", "", "Show changes since historical point (commit SHA, branch, tag, or date)")
@@ -204,6 +199,14 @@ func main() {
 		fmt.Println("  --robot-priority")
 		fmt.Println("      Priority recommendations with explanations. Includes data_hash, analysis_config, status.")
 		fmt.Println("      recommendation fields: id, current_priority, suggested_priority, impact_score, confidence, reasoning[].")
+		fmt.Println("      explanation.what_if: impact of completing (direct_unblocks, transitive_unblocks, estimated_days_saved).")
+		fmt.Println("      explanation.top_reasons: top 3 factors (pagerank, betweenness, blockers, staleness, etc.).")
+		fmt.Println("")
+		fmt.Println("  Robot Output Filters (bv-84):")
+		fmt.Println("      --robot-min-confidence 0.6    Filter by minimum confidence (0.0-1.0)")
+		fmt.Println("      --robot-max-results 5         Limit to top N results")
+		fmt.Println("      --robot-by-label bug          Filter by label (exact match)")
+		fmt.Println("      --robot-by-assignee alice     Filter by assignee (exact match)")
 		fmt.Println("")
 		fmt.Println("  --robot-triage / --robot-next")
 		fmt.Println("      Unified triage (mega command) or single top pick. QuickRef includes top picks, quick_wins, blockers_to_clear.")
