@@ -322,6 +322,23 @@ impl DiGraph {
         let result = hits_default(self);
         serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
     }
+
+    /// Compute k-core numbers for all nodes.
+    /// Uses undirected view of the graph.
+    /// Returns array of core numbers in node index order.
+    #[wasm_bindgen(js_name = kcore)]
+    pub fn kcore(&self) -> JsValue {
+        use crate::algorithms::kcore::kcore;
+        let cores = kcore(self);
+        serde_wasm_bindgen::to_value(&cores).unwrap_or(JsValue::NULL)
+    }
+
+    /// Get the degeneracy of the graph (maximum core number).
+    #[wasm_bindgen(js_name = degeneracy)]
+    pub fn degeneracy(&self) -> u32 {
+        use crate::algorithms::kcore::degeneracy;
+        degeneracy(self)
+    }
 }
 
 // Internal methods (not exposed to WASM)
