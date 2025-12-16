@@ -1699,6 +1699,11 @@ function beadsApp() {
      * Render markdown helper
      */
     renderMarkdown,
+
+    /**
+     * Get issue by ID (wrapper for templates)
+     */
+    getIssue,
   };
 }
 
@@ -1740,4 +1745,9 @@ window.beadsViewer = {
   getActionableIssues,
   getCycleBreakSuggestions,
   getTopKSet,
+
+  // Insights helpers
+  getTopByBetweenness,
+  getTopByCriticalPath,
+  getCycleInfo,
 };
