@@ -71,6 +71,11 @@ func main() {
 	graphFormat := flag.String("graph-format", "json", "Graph output format: json, dot, mermaid")
 	graphRoot := flag.String("graph-root", "", "Subgraph from specific root issue ID")
 	graphDepth := flag.Int("graph-depth", 0, "Max depth for subgraph (0 = unlimited)")
+	// Graph snapshot export (bv-94)
+	exportGraph := flag.String("export-graph", "", "Export graph snapshot to PNG or SVG (format inferred from extension)")
+	graphPreset := flag.String("graph-preset", "compact", "Graph layout preset: compact (default) or roomy")
+	graphTitle := flag.String("graph-title", "", "Title for graph snapshot (default: 'Graph Snapshot')")
+	graphStyle := flag.String("graph-style", "force", "Graph visual style: force (beautiful force-directed) or grid (simple grid layout)")
 	// Robot output filters (bv-84)
 	robotMinConf := flag.Float64("robot-min-confidence", 0.0, "Filter robot outputs by minimum confidence (0.0-1.0)")
 	robotMaxResults := flag.Int("robot-max-results", 0, "Limit robot output count (0 = use defaults)")
@@ -431,6 +436,30 @@ func main() {
 		fmt.Println("        --graph-depth N: Limit subgraph depth (0 = unlimited)")
 		fmt.Println("      Fields: format, graph (string for dot/mermaid), nodes, edges, filters_applied, explanation")
 		fmt.Println("      Example: bv --robot-graph --graph-format=dot --label=api > api-deps.dot")
+		fmt.Println("")
+		fmt.Println("  --export-graph <path.png|path.svg> [--graph-style=force|grid] [--graph-preset=compact|roomy]")
+		fmt.Println("      Export dependency graph as PNG or SVG image (pure Go, no external dependencies).")
+		fmt.Println("      Format is inferred from file extension (.png or .svg).")
+		fmt.Println("")
+		fmt.Println("      Styles:")
+		fmt.Println("        --graph-style=force (default): Beautiful force-directed layout")
+		fmt.Println("          - Physics-based positioning (Fruchterman-Reingold algorithm)")
+		fmt.Println("          - Dark Dracula-inspired theme with vibrant status colors")
+		fmt.Println("          - Curved bezier edges with glow effects")
+		fmt.Println("          - Node size reflects importance (PageRank + betweenness)")
+		fmt.Println("          - Priority badges, drop shadows, gradients")
+		fmt.Println("")
+		fmt.Println("        --graph-style=grid: Simple hierarchical grid layout")
+		fmt.Println("          - Nodes arranged by critical path depth")
+		fmt.Println("          - Light theme with pastel colors")
+		fmt.Println("")
+		fmt.Println("      Options:")
+		fmt.Println("        --label LABEL: Filter to issues with specific label")
+		fmt.Println("        --graph-preset: Layout spacing - 'compact' (default) or 'roomy'")
+		fmt.Println("        --graph-title: Custom title for the graph header")
+		fmt.Println("")
+		fmt.Println("      Example: bv --export-graph deps.svg --label=api --graph-title='API Dependencies'")
+		fmt.Println("      Example: bv --export-graph full.png --graph-style=force --graph-preset=roomy")
 		fmt.Println("")
 		fmt.Println("  --robot-insights")
 		fmt.Println("      Graph metrics JSON for agents.")
@@ -1373,6 +1402,58 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error encoding graph: %v\n", err)
 			os.Exit(1)
 		}
+		os.Exit(0)
+	}
+
+	// Handle --export-graph (bv-94) - PNG/SVG snapshot export
+	if *exportGraph != "" {
+		analyzer := analysis.NewAnalyzer(issues)
+		stats := analyzer.Analyze()
+
+		// Apply label filter if specified
+		exportIssues := issues
+		if *labelScope != "" {
+			var filtered []model.Issue
+			for _, iss := range issues {
+				for _, lbl := range iss.Labels {
+					if strings.EqualFold(lbl, *labelScope) {
+						filtered = append(filtered, iss)
+						break
+					}
+				}
+			}
+			exportIssues = filtered
+		}
+
+		if len(exportIssues) == 0 {
+			fmt.Fprintf(os.Stderr, "No issues to export (check filters)\n")
+			os.Exit(1)
+		}
+
+		opts := export.GraphSnapshotOptions{
+			Path:     *exportGraph,
+			Title:    *graphTitle,
+			Preset:   *graphPreset,
+			Issues:   exportIssues,
+			Stats:    &stats,
+			DataHash: dataHash,
+		}
+
+		var err error
+		if strings.EqualFold(*graphStyle, "grid") {
+			// Original simple grid layout
+			err = export.SaveGraphSnapshot(opts)
+		} else {
+			// Beautiful force-directed layout (default)
+			err = export.SaveBeautifulGraphSnapshot(opts)
+		}
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error exporting graph snapshot: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("✓ Graph exported to %s (%d nodes, %s style)\n", *exportGraph, len(exportIssues), *graphStyle)
 		os.Exit(0)
 	}
 
