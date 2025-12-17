@@ -98,25 +98,26 @@ bv is a graph-aware triage engine for Beads projects (.beads/beads.jsonl). Inste
 
 **⚠️ CRITICAL: Use ONLY `--robot-*` flags. Bare `bv` launches an interactive TUI that blocks your session.**
 
----
+#### The Workflow: Start With Triage
 
-#### Quick Start
+**`bv --robot-triage` is your single entry point.** It returns everything you need in one call:
+- `quick_ref`: at-a-glance counts + top 3 picks
+- `recommendations`: ranked actionable items with scores, reasons, unblock info
+- `quick_wins`: low-effort high-impact items
+- `blockers_to_clear`: items that unblock the most downstream work
+- `project_health`: status/type/priority distributions, graph metrics
+- `commands`: copy-paste shell commands for next steps
 
-bv --robot-next          # Single top recommendation + claim command
-bv --robot-triage        # THE MEGA-COMMAND: full context in one call
-bv --robot-help          # Complete robot command documentation
+bv --robot-triage        # THE MEGA-COMMAND: start here
+bv --robot-next          # Minimal: just the single top pick + claim command
 
----
+#### Other Commands
 
-#### Command Reference
-
-**Triage & Planning:**
+**Planning:**
 | Command | Returns |
 |---------|---------|
-| `--robot-triage` | **THE MEGA-COMMAND.** Unified JSON: `quick_ref` (counts, top 3), `recommendations` (ranked with scores/reasons), `quick_wins`, `blockers_to_clear`, `project_health`, `commands` |
-| `--robot-next` | Minimal: single top pick + claim/show commands. Use for "what should I work on?" |
-| `--robot-plan` | Parallel execution tracks with `unblocks` lists showing what each item frees up |
-| `--robot-priority` | Priority misalignment detection with confidence scores and reasoning |
+| `--robot-plan` | Parallel execution tracks with `unblocks` lists |
+| `--robot-priority` | Priority misalignment detection with confidence |
 
 **Graph Analysis:**
 | Command | Returns |
@@ -132,49 +133,24 @@ bv --robot-help          # Complete robot command documentation
 | `--robot-history` | Bead-to-commit correlations: `stats`, `histories` (per-bead events/commits/milestones), `commit_index` |
 | `--robot-diff --diff-since <ref>` | Changes since ref: new/closed/modified issues, cycles introduced/resolved |
 
-**Sprint & Forecasting:**
+**Other Commands:**
 | Command | Returns |
 |---------|---------|
-| `--robot-sprint-list` | All defined sprints |
-| `--robot-burndown <sprint>` | Burndown data, scope changes, at-risk items |
+| `--robot-burndown <sprint>` | Sprint burndown, scope changes, at-risk items |
 | `--robot-forecast <id\|all>` | ETA predictions with dependency-aware scheduling |
-| `--robot-capacity [--agents=N]` | Team throughput simulation with parallelism |
-
-**Health & Maintenance:**
-| Command | Returns |
-|---------|---------|
-| `--robot-alerts [--severity=critical]` | Stale issues, blocking cascades, priority mismatches, cycle warnings |
-| `--robot-suggest` | Hygiene suggestions: duplicates, missing deps, label recommendations, cycle breaks |
-
-**Graph Export:**
-| Command | Returns |
-|---------|---------|
-| `--robot-graph [--graph-format=json\|dot\|mermaid]` | Dependency graph for visualization tools |
-| `--export-graph <file.html>` | Self-contained interactive HTML visualization (force-directed, filterable, full bead data) |
-
----
+| `--robot-alerts` | Stale issues, blocking cascades, priority mismatches |
+| `--robot-suggest` | Hygiene: duplicates, missing deps, label suggestions, cycle breaks |
+| `--robot-graph [--graph-format=json\|dot\|mermaid]` | Dependency graph export |
+| `--export-graph <file.html>` | Self-contained interactive HTML visualization |
 
 #### Scoping & Filtering
 
-# Scope to a label's subgraph
-bv --robot-plan --label backend
-bv --robot-insights --label api
-
-# Historical point-in-time analysis
-bv --robot-insights --as-of HEAD~30
-bv --robot-triage --as-of v1.0.0
-
-# Pre-filter with recipes
-bv --recipe actionable --robot-plan    # Ready to work (no blockers)
-bv --recipe high-impact --robot-plan   # Top PageRank scores
-bv --recipe stale --robot-triage       # Untouched 30+ days
-bv --recipe blocked --robot-triage     # Waiting on dependencies
-
-# Group triage recommendations
-bv --robot-triage --robot-triage-by-track  # By parallel work streams
-bv --robot-triage --robot-triage-by-label  # By domain/label
-
----
+bv --robot-plan --label backend              # Scope to label's subgraph
+bv --robot-insights --as-of HEAD~30          # Historical point-in-time
+bv --recipe actionable --robot-plan          # Pre-filter: ready to work (no blockers)
+bv --recipe high-impact --robot-triage       # Pre-filter: top PageRank scores
+bv --robot-triage --robot-triage-by-track    # Group by parallel work streams
+bv --robot-triage --robot-triage-by-label    # Group by domain
 
 #### Understanding Robot Output
 
@@ -187,72 +163,20 @@ bv --robot-triage --robot-triage-by-label  # By domain/label
 - **Phase 1 (instant):** degree, topo sort, density — always available immediately
 - **Phase 2 (async, 500ms timeout):** PageRank, betweenness, HITS, eigenvector, cycles — check `status` flags
 
-**For large graphs (>500 nodes):** Some metrics may be approximated (`approx`) or skipped. Always check `status`.
-
----
-
-#### Recommended Workflow
-
-Starting work?
-├─ Quick pick ─────────────→ bv --robot-next
-└─ Need full context ──────→ bv --robot-triage
-   └─ Multi-agent? ────────→ --robot-triage-by-track
-
-Planning parallel work?
-├─ Execution order ────────→ bv --robot-plan
-├─ Highest unblock impact ─→ jq '.plan.summary.highest_impact'
-└─ By domain ──────────────→ bv --robot-plan --label <label>
-
-Deep analysis?
-├─ Graph metrics ──────────→ bv --robot-insights
-├─ Domain health ──────────→ bv --robot-label-health
-├─ Cross-domain deps ──────→ bv --robot-label-flow
-└─ Which labels need focus → bv --robot-label-attention
-
-Change tracking?
-├─ What changed? ──────────→ bv --robot-diff --diff-since HEAD~5
-├─ Historical state ───────→ bv --robot-insights --as-of <ref>
-└─ Code correlation ───────→ bv --robot-history --bead-history <id>
-
----
+**For large graphs (>500 nodes):** Some metrics may be approximated or skipped. Always check `status`.
 
 #### jq Quick Reference
 
-# Triage
 bv --robot-triage | jq '.quick_ref'                        # At-a-glance summary
 bv --robot-triage | jq '.recommendations[0]'               # Top recommendation
-bv --robot-triage | jq '.blockers_to_clear[0]'             # Top blocker to clear
-
-# Planning
 bv --robot-plan | jq '.plan.summary.highest_impact'        # Best unblock target
-bv --robot-plan | jq '.plan.tracks[].items[].id'           # All actionable IDs
-
-# Insights
-bv --robot-insights | jq '.status'                         # Metric computation status
-bv --robot-insights | jq '.Bottlenecks[:3]'                # Top 3 bottlenecks
-bv --robot-insights | jq '.Cycles'                         # Circular dependencies (must fix!)
-
-# Label analysis
+bv --robot-insights | jq '.status'                         # Check metric readiness
+bv --robot-insights | jq '.Cycles'                         # Circular deps (must fix!)
 bv --robot-label-health | jq '.results.labels[] | select(.health_level == "critical")'
-bv --robot-label-flow | jq '.flow.bottleneck_labels'
-bv --robot-label-attention | jq '.labels[:3]'              # Top 3 attention-needing labels
 
-# History
-bv --robot-history | jq '.histories["<id>"].commits'       # Commits for specific bead
-bv --robot-diff --diff-since HEAD~1 | jq '.diff.summary'   # Recent changes summary
+**Performance:** Phase 1 instant, Phase 2 async (500ms timeout). Prefer `--robot-plan` over `--robot-insights` when speed matters. Results cached by data hash.
 
----
-
-#### Performance Notes
-
-- Phase 1 metrics are instant; Phase 2 runs async with 500ms timeouts
-- Prefer `--robot-plan` (Phase 1 only) over `--robot-insights` (waits for Phase 2) when speed matters
-- Repeated calls are fast due to hash-keyed caching when beads.jsonl unchanged
-- Use `bv --profile-startup` for diagnostics
-
----
-
-Use bv instead of parsing beads.jsonl or hand-rolling graph logic—it computes PageRank, critical paths, cycles, and parallel tracks deterministically so you can act safely and quickly.
+Use bv instead of parsing beads.jsonl—it computes PageRank, critical paths, cycles, and parallel tracks deterministically.
 ```
 
 
