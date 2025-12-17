@@ -5,21 +5,23 @@
 package export
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
+
+	"github.com/charmbracelet/huh"
+	"golang.org/x/term"
 )
 
 // WizardConfig holds configuration for the deployment wizard.
 type WizardConfig struct {
 	// Export options
-	IncludeClosed bool   `json:"include_closed"`
-	Title         string `json:"title"`
-	Subtitle      string `json:"subtitle,omitempty"`
+	IncludeClosed  bool   `json:"include_closed"`
+	IncludeHistory bool   `json:"include_history"`
+	Title          string `json:"title"`
+	Subtitle       string `json:"subtitle,omitempty"`
 
 	// Deployment target
 	DeployTarget string `json:"deploy_target"` // "github", "cloudflare", "local"
@@ -51,7 +53,6 @@ type WizardResult struct {
 // Wizard handles the interactive deployment flow.
 type Wizard struct {
 	config     *WizardConfig
-	reader     *bufio.Reader
 	beadsPath  string
 	bundlePath string
 }
@@ -59,10 +60,26 @@ type Wizard struct {
 // NewWizard creates a new deployment wizard.
 func NewWizard(beadsPath string) *Wizard {
 	return &Wizard{
-		config:    &WizardConfig{},
-		reader:    bufio.NewReader(os.Stdin),
+		config: &WizardConfig{
+			IncludeClosed:  true, // Include all issues by default
+			IncludeHistory: true, // Include git history by default
+		},
 		beadsPath: beadsPath,
 	}
+}
+
+// isTerminal checks if stdin is connected to a terminal
+func isTerminal() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+// newForm creates a form with appropriate settings based on TTY detection
+func newForm(groups ...*huh.Group) *huh.Form {
+	form := huh.NewForm(groups...).WithTheme(huh.ThemeDracula())
+	if !isTerminal() {
+		form = form.WithAccessible(true)
+	}
+	return form
 }
 
 // Run executes the interactive wizard flow.
@@ -120,15 +137,40 @@ func (w *Wizard) collectExportOptions() error {
 	fmt.Println("Step 1: Export Configuration")
 	fmt.Println("────────────────────────────")
 
-	// Include closed issues?
-	w.config.IncludeClosed = w.askYesNo("Include closed issues?", false)
-
-	// Custom title
+	// Default title
 	defaultTitle := "Project Issues"
-	w.config.Title = w.askString("Site title", defaultTitle)
+	title := defaultTitle
 
-	// Custom subtitle (optional)
-	w.config.Subtitle = w.askString("Site subtitle (optional)", "")
+	form := newForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Include closed issues?").
+				Description("Export both open and closed issues").
+				Value(&w.config.IncludeClosed),
+			huh.NewConfirm().
+				Title("Include git history?").
+				Description("Export git commit history for each issue").
+				Value(&w.config.IncludeHistory),
+			huh.NewInput().
+				Title("Site title").
+				Value(&title).
+				Placeholder(defaultTitle),
+			huh.NewInput().
+				Title("Site subtitle (optional)").
+				Value(&w.config.Subtitle).
+				Placeholder(""),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	if title != "" {
+		w.config.Title = title
+	} else {
+		w.config.Title = defaultTitle
+	}
 
 	fmt.Println("")
 	return nil
@@ -137,23 +179,22 @@ func (w *Wizard) collectExportOptions() error {
 func (w *Wizard) collectDeployTarget() error {
 	fmt.Println("Step 2: Deployment Target")
 	fmt.Println("────────────────────────────")
-	fmt.Println("Where do you want to deploy?")
-	fmt.Println("  1. GitHub Pages (create/update repository)")
-	fmt.Println("  2. Cloudflare Pages (requires wrangler CLI)")
-	fmt.Println("  3. Export locally only")
-	fmt.Println("")
 
-	choice := w.askChoice("Choice", []string{"1", "2", "3"}, "1")
+	form := newForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Where do you want to deploy?").
+				Options(
+					huh.NewOption("GitHub Pages (create/update repository)", "github"),
+					huh.NewOption("Cloudflare Pages (requires wrangler CLI)", "cloudflare"),
+					huh.NewOption("Export locally only", "local"),
+				).
+				Value(&w.config.DeployTarget),
+		),
+	)
 
-	switch choice {
-	case "1":
-		w.config.DeployTarget = "github"
-	case "2":
-		w.config.DeployTarget = "cloudflare"
-	case "3":
-		w.config.DeployTarget = "local"
-	default:
-		w.config.DeployTarget = "github"
+	if err := form.Run(); err != nil {
+		return err
 	}
 
 	fmt.Println("")
@@ -183,10 +224,35 @@ func (w *Wizard) collectGitHubConfig() error {
 		base = "beads-viewer-pages"
 	}
 	suggestedName := base + "-pages"
+	repoName := suggestedName
+	description := "Issue tracker dashboard"
 
-	w.config.RepoName = w.askString("Repository name", suggestedName)
-	w.config.RepoPrivate = w.askYesNo("Make repository private?", false)
-	w.config.RepoDescription = w.askString("Repository description (optional)", "Issue tracker dashboard")
+	form := newForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Repository name").
+				Value(&repoName).
+				Placeholder(suggestedName),
+			huh.NewConfirm().
+				Title("Make repository private?").
+				Value(&w.config.RepoPrivate),
+			huh.NewInput().
+				Title("Repository description (optional)").
+				Value(&description).
+				Placeholder("Issue tracker dashboard"),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	if repoName != "" {
+		w.config.RepoName = repoName
+	} else {
+		w.config.RepoName = suggestedName
+	}
+	w.config.RepoDescription = description
 
 	fmt.Println("")
 	return nil
@@ -207,8 +273,36 @@ func (w *Wizard) collectCloudflareConfig() error {
 		suggestedName = base + "-pages"
 	}
 
-	w.config.CloudflareProject = w.askString("Cloudflare Pages project name", suggestedName)
-	w.config.CloudflareBranch = w.askString("Branch name", "main")
+	projectName := suggestedName
+	branch := "main"
+
+	form := newForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Cloudflare Pages project name").
+				Value(&projectName).
+				Placeholder(suggestedName),
+			huh.NewInput().
+				Title("Branch name").
+				Value(&branch).
+				Placeholder("main"),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	if projectName != "" {
+		w.config.CloudflareProject = projectName
+	} else {
+		w.config.CloudflareProject = suggestedName
+	}
+	if branch != "" {
+		w.config.CloudflareBranch = branch
+	} else {
+		w.config.CloudflareBranch = "main"
+	}
 
 	fmt.Println("")
 	return nil
@@ -220,7 +314,26 @@ func (w *Wizard) collectLocalConfig() error {
 
 	// Default output path
 	defaultPath := "./bv-pages"
-	w.config.OutputPath = w.askString("Output directory", defaultPath)
+	outputPath := defaultPath
+
+	form := newForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Output directory").
+				Value(&outputPath).
+				Placeholder(defaultPath),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	if outputPath != "" {
+		w.config.OutputPath = outputPath
+	} else {
+		w.config.OutputPath = defaultPath
+	}
 
 	fmt.Println("")
 	return nil
@@ -249,7 +362,23 @@ func (w *Wizard) checkPrerequisites() error {
 		if !status.Authenticated {
 			fmt.Println("✗ gh CLI not authenticated")
 			fmt.Println("")
-			if w.askYesNo("Would you like to authenticate now?", true) {
+
+			var doAuth bool
+			form := newForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title("Would you like to authenticate now?").
+						Value(&doAuth).
+						Affirmative("Yes").
+						Negative("No"),
+				),
+			)
+
+			if err := form.Run(); err != nil {
+				return err
+			}
+
+			if doAuth {
 				if err := AuthenticateGH(); err != nil {
 					return fmt.Errorf("authentication failed: %w", err)
 				}
@@ -289,7 +418,23 @@ func (w *Wizard) checkPrerequisites() error {
 				return fmt.Errorf("npm is required to install wrangler CLI")
 			}
 			ShowWranglerInstallInstructions()
-			if w.askYesNo("Would you like to install wrangler now?", true) {
+
+			var doInstall bool
+			form := newForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title("Would you like to install wrangler now?").
+						Value(&doInstall).
+						Affirmative("Yes").
+						Negative("No"),
+				),
+			)
+
+			if err := form.Run(); err != nil {
+				return err
+			}
+
+			if doInstall {
 				if err := AttemptWranglerInstall(); err != nil {
 					return fmt.Errorf("wrangler installation failed: %w", err)
 				}
@@ -308,7 +453,23 @@ func (w *Wizard) checkPrerequisites() error {
 		if !status.Authenticated {
 			fmt.Println("✗ wrangler not authenticated")
 			fmt.Println("")
-			if w.askYesNo("Would you like to authenticate now?", true) {
+
+			var doAuth bool
+			form := newForm(
+				huh.NewGroup(
+					huh.NewConfirm().
+						Title("Would you like to authenticate now?").
+						Value(&doAuth).
+						Affirmative("Yes").
+						Negative("No"),
+				),
+			)
+
+			if err := form.Run(); err != nil {
+				return err
+			}
+
+			if doAuth {
 				if err := AuthenticateWrangler(); err != nil {
 					return fmt.Errorf("authentication failed: %w", err)
 				}
@@ -348,7 +509,22 @@ func (w *Wizard) OfferPreview() (string, error) {
 	fmt.Println("Step 6: Preview")
 	fmt.Println("────────────────────────────")
 
-	if !w.askYesNo("Preview the site before deploying?", true) {
+	var doPreview bool = true
+	form := newForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Preview the site before deploying?").
+				Value(&doPreview).
+				Affirmative("Yes").
+				Negative("No"),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return "", err
+	}
+
+	if !doPreview {
 		return "deploy", nil
 	}
 
@@ -373,20 +549,34 @@ func (w *Wizard) OfferPreview() (string, error) {
 	}()
 
 	// Start server in goroutine
-	errChan := make(chan error, 1)
 	go func() {
-		if err := server.Start(); err != nil {
-			errChan <- err
-		}
+		server.Start()
 	}()
 
-	// Wait for user to press enter
-	fmt.Println("")
-	fmt.Println("Press Enter when done previewing to continue with deployment...")
-	w.reader.ReadString('\n')
+	// Wait for user to press enter with a simple huh form
+	var cont bool = true // Default to continue after preview
+	waitForm := newForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Done previewing?").
+				Description("Press Enter to continue with deployment").
+				Value(&cont).
+				Affirmative("Continue").
+				Negative("Cancel"),
+		),
+	)
+
+	if err := waitForm.Run(); err != nil {
+		server.Stop()
+		return "", err
+	}
 
 	// Stop server
 	server.Stop()
+
+	if !cont {
+		return "cancel", nil
+	}
 
 	fmt.Println("")
 	return "deploy", nil
@@ -409,7 +599,7 @@ func (w *Wizard) PerformDeploy() (*WizardResult, error) {
 			Private:          w.config.RepoPrivate,
 			Description:      w.config.RepoDescription,
 			BundlePath:       w.bundlePath,
-			SkipConfirmation: false,
+			SkipConfirmation: true, // Already confirmed in wizard prerequisites
 			ForceOverwrite:   false,
 		}
 
@@ -473,70 +663,6 @@ func (w *Wizard) PrintSuccess(result *WizardResult) {
 
 	fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
 	fmt.Println("")
-}
-
-// Helper functions for user input
-
-func (w *Wizard) askYesNo(question string, defaultYes bool) bool {
-	suffix := "[y/N]"
-	if defaultYes {
-		suffix = "[Y/n]"
-	}
-
-	fmt.Printf("%s %s: ", question, suffix)
-	response, err := w.reader.ReadString('\n')
-	if err != nil {
-		return defaultYes
-	}
-
-	response = strings.TrimSpace(strings.ToLower(response))
-	if response == "" {
-		return defaultYes
-	}
-
-	return response == "y" || response == "yes"
-}
-
-func (w *Wizard) askString(question string, defaultValue string) string {
-	if defaultValue != "" {
-		fmt.Printf("%s [%s]: ", question, defaultValue)
-	} else {
-		fmt.Printf("%s: ", question)
-	}
-
-	response, err := w.reader.ReadString('\n')
-	if err != nil {
-		return defaultValue
-	}
-
-	response = strings.TrimSpace(response)
-	if response == "" {
-		return defaultValue
-	}
-
-	return response
-}
-
-func (w *Wizard) askChoice(question string, choices []string, defaultChoice string) string {
-	fmt.Printf("%s [%s]: ", question, defaultChoice)
-	response, err := w.reader.ReadString('\n')
-	if err != nil {
-		return defaultChoice
-	}
-
-	response = strings.TrimSpace(response)
-	if response == "" {
-		return defaultChoice
-	}
-
-	// Validate choice
-	for _, c := range choices {
-		if response == c {
-			return response
-		}
-	}
-
-	return defaultChoice
 }
 
 // WizardConfigPath returns the path to the wizard config file.

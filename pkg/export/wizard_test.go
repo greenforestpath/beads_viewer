@@ -21,14 +21,19 @@ func TestNewWizard(t *testing.T) {
 		t.Error("Expected config to be initialized")
 	}
 
-	if wizard.reader == nil {
-		t.Error("Expected reader to be initialized")
+	// Check new defaults
+	if !wizard.config.IncludeClosed {
+		t.Error("Expected IncludeClosed to be true by default")
+	}
+	if !wizard.config.IncludeHistory {
+		t.Error("Expected IncludeHistory to be true by default")
 	}
 }
 
 func TestWizardConfig(t *testing.T) {
 	config := WizardConfig{
 		IncludeClosed:   true,
+		IncludeHistory:  true,
 		Title:           "Test Title",
 		Subtitle:        "Test Subtitle",
 		DeployTarget:    "github",
@@ -40,6 +45,10 @@ func TestWizardConfig(t *testing.T) {
 
 	if !config.IncludeClosed {
 		t.Error("Expected IncludeClosed to be true")
+	}
+
+	if !config.IncludeHistory {
+		t.Error("Expected IncludeHistory to be true")
 	}
 
 	if config.Title != "Test Title" {
@@ -84,9 +93,13 @@ func TestWizard_GetConfig(t *testing.T) {
 		t.Fatal("GetConfig returned nil")
 	}
 
-	// Default values
-	if config.IncludeClosed {
-		t.Error("Expected IncludeClosed to be false by default")
+	// Default values - both IncludeClosed and IncludeHistory default to true
+	if !config.IncludeClosed {
+		t.Error("Expected IncludeClosed to be true by default")
+	}
+
+	if !config.IncludeHistory {
+		t.Error("Expected IncludeHistory to be true by default")
 	}
 
 	if config.DeployTarget != "" {
@@ -123,11 +136,12 @@ func TestSaveAndLoadWizardConfig(t *testing.T) {
 	}
 
 	config := &WizardConfig{
-		IncludeClosed: true,
-		Title:         "Saved Title",
-		DeployTarget:  "github",
-		RepoName:      "saved-repo",
-		RepoPrivate:   true,
+		IncludeClosed:  true,
+		IncludeHistory: true,
+		Title:          "Saved Title",
+		DeployTarget:   "github",
+		RepoName:       "saved-repo",
+		RepoPrivate:    true,
 	}
 
 	if err := SaveWizardConfig(config); err != nil {

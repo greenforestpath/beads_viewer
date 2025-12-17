@@ -798,6 +798,10 @@ func main() {
 
 	if *asOf != "" {
 		// Time-travel mode: load historical issues from git
+		// Note: --as-of takes precedence over --workspace (can't combine historical + multi-repo)
+		if *workspaceConfig != "" {
+			fmt.Fprintf(os.Stderr, "Warning: --workspace is ignored when --as-of is specified\n")
+		}
 		cwd, err := os.Getwd()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error getting current directory: %v\n", err)
@@ -813,8 +817,12 @@ func main() {
 		asOfResolved, _ = gitLoader.ResolveRevision(*asOf)
 		// No live reload for historical view
 		beadsPath = ""
-		if !envRobot && len(issues) > 0 {
-			fmt.Fprintf(os.Stderr, "Loaded %d issues from %s (%s)\n", len(issues), *asOf, asOfResolved[:min(7, len(asOfResolved))])
+		if !envRobot {
+			if asOfResolved != "" {
+				fmt.Fprintf(os.Stderr, "Loaded %d issues from %s (%s)\n", len(issues), *asOf, asOfResolved[:min(7, len(asOfResolved))])
+			} else {
+				fmt.Fprintf(os.Stderr, "Loaded %d issues from %s\n", len(issues), *asOf)
+			}
 		}
 	} else if *workspaceConfig != "" {
 		// Load from workspace configuration
@@ -4189,18 +4197,28 @@ func runPagesWizard(issues []model.Issue, beadsPath string) error {
 
 	// Offer preview and deploy (for GitHub and Cloudflare)
 	if config.DeployTarget == "github" || config.DeployTarget == "cloudflare" {
-		_, err := wizard.OfferPreview()
+		action, err := wizard.OfferPreview()
 		if err != nil {
 			return err
 		}
 
-		// Perform deployment
-		result, err := wizard.PerformDeploy()
-		if err != nil {
-			return err
-		}
+		if action == "cancel" {
+			// User cancelled after preview - show local result instead
+			fmt.Println("Deployment cancelled. Bundle available at:", bundlePath)
+			result := &export.WizardResult{
+				BundlePath:   bundlePath,
+				DeployTarget: "local",
+			}
+			wizard.PrintSuccess(result)
+		} else {
+			// Perform deployment
+			result, err := wizard.PerformDeploy()
+			if err != nil {
+				return err
+			}
 
-		wizard.PrintSuccess(result)
+			wizard.PrintSuccess(result)
+		}
 	} else {
 		// Local export - just show success
 		result := &export.WizardResult{

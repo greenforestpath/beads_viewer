@@ -32,6 +32,7 @@ func TestWizard_LocalExportFlow(t *testing.T) {
 	cmd := exec.Command(bv, "--pages")
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader(input)
+	cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -77,6 +78,7 @@ func TestWizard_GitHubFlowPrompts(t *testing.T) {
 	cmd := exec.Command(bv, "--pages")
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader(input)
+	cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -112,6 +114,7 @@ func TestWizard_CloudflareFlowPrompts(t *testing.T) {
 	cmd := exec.Command(bv, "--pages")
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader(input)
+	cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -136,7 +139,7 @@ func TestWizard_DeployTargetSelection(t *testing.T) {
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader(input)
 	// Add timeout to prevent hanging
-	cmd.Env = append(os.Environ(), "BV_TEST_MODE=1")
+	cmd.Env = append(os.Environ(), "BV_TEST_MODE=1", "BV_NO_BROWSER=1")
 
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -167,6 +170,7 @@ func TestWizard_ExportConfigPrompts(t *testing.T) {
 	cmd := exec.Command(bv, "--pages")
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader(input)
+	cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -197,6 +201,7 @@ func TestWizard_BannerDisplay(t *testing.T) {
 	cmd := exec.Command(bv, "--pages")
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader(input)
+	cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -282,6 +287,7 @@ func TestWizard_InvalidDeployTargetRecovery(t *testing.T) {
 	cmd := exec.Command(bv, "--pages")
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader(input)
+	cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -305,6 +311,7 @@ func TestWizard_DefaultValues(t *testing.T) {
 	cmd := exec.Command(bv, "--pages")
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader(input)
+	cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -335,6 +342,7 @@ func TestWizard_StepProgression(t *testing.T) {
 	cmd := exec.Command(bv, "--pages")
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader(input)
+	cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -366,6 +374,7 @@ func TestWizard_OutputDirectoryPrompt(t *testing.T) {
 	cmd := exec.Command(bv, "--pages")
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader(input)
+	cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
@@ -390,6 +399,7 @@ func TestWizard_InterruptHandling(t *testing.T) {
 	cmd := exec.Command(bv, "--pages")
 	cmd.Dir = repoDir
 	cmd.Stdin = strings.NewReader("")
+	cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 	// Use a timeout to prevent hanging
 	done := make(chan error, 1)
@@ -419,7 +429,7 @@ func TestWizard_MultiplePlatformFlows(t *testing.T) {
 	}{
 		{"GitHub", "1", "GitHub"},
 		{"Cloudflare", "2", "Cloudflare"},
-		{"Local", "3", "Local"},
+		{"Local", "3", "local"}, // lowercase to match "locally" or "local"
 	}
 
 	for _, tc := range tests {
@@ -432,10 +442,12 @@ func TestWizard_MultiplePlatformFlows(t *testing.T) {
 			cmd := exec.Command(bv, "--pages")
 			cmd.Dir = repoDir
 			cmd.Stdin = strings.NewReader(input)
+			cmd.Env = append(os.Environ(), "BV_NO_BROWSER=1")
 
 			out, _ := cmd.CombinedOutput()
+			output := strings.ToLower(string(out))
 
-			if !strings.Contains(string(out), tc.contains) {
+			if !strings.Contains(output, strings.ToLower(tc.contains)) {
 				t.Errorf("expected output to contain %q for %s platform", tc.contains, tc.name)
 			}
 		})
