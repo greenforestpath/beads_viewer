@@ -1030,17 +1030,13 @@ func (h *HistoryModel) renderEmpty(msg string) string {
 	return style.Render(msg + "\n\nPress H to close")
 }
 
-// renderHeader renders the filter bar and title
+// renderHeader renders the filter bar, statistics, and title (bv-y5sx)
 func (h *HistoryModel) renderHeader() string {
 	t := h.theme
 
 	titleStyle := t.Renderer.NewStyle().
 		Bold(true).
 		Foreground(t.Primary).
-		Padding(0, 1)
-
-	filterStyle := t.Renderer.NewStyle().
-		Foreground(t.Secondary).
 		Padding(0, 1)
 
 	// Show view mode indicator (bv-tl3n)
@@ -1055,34 +1051,7 @@ func (h *HistoryModel) renderHeader() string {
 		Bold(true).
 		Padding(0, 1)
 
-	title := titleStyle.Render("BEAD HISTORY") + modeStyle.Render(modeIndicator)
-
-	// Build filter info
-	var filters []string
-	if h.viewMode == historyModeGit {
-		// Show filtered count if search active (bv-nkrj)
-		commits := h.GetFilteredCommitList()
-		if h.searchActive && h.searchInput.Value() != "" {
-			filters = append(filters, fmt.Sprintf("%d/%d commits", len(commits), len(h.commitList)))
-		} else {
-			filters = append(filters, fmt.Sprintf("%d commits", len(commits)))
-		}
-	} else {
-		if h.searchActive && h.searchInput.Value() != "" {
-			filters = append(filters, fmt.Sprintf("%d/%d beads", len(h.histories), len(h.report.Histories)))
-		} else {
-			filters = append(filters, fmt.Sprintf("%d/%d beads", len(h.histories), len(h.report.Histories)))
-		}
-	}
-
-	if h.authorFilter != "" {
-		filters = append(filters, fmt.Sprintf("Author: %s", h.authorFilter))
-	}
-	if h.minConfidence > 0 {
-		filters = append(filters, fmt.Sprintf("Conf: ≥%.0f%%", h.minConfidence*100))
-	}
-
-	filterInfo := filterStyle.Render(strings.Join(filters, " | "))
+	title := titleStyle.Render("HISTORY") + modeStyle.Render(modeIndicator)
 
 	// Search input or close hint (bv-nkrj)
 	var rightContent string
@@ -1114,14 +1083,19 @@ func (h *HistoryModel) renderHeader() string {
 			Render("[/] search  [H] close")
 	}
 
-	// Combine with spacing
-	spacerWidth := h.width - lipgloss.Width(title) - lipgloss.Width(filterInfo) - lipgloss.Width(rightContent)
-	if spacerWidth < 1 {
-		spacerWidth = 1
+	// Combine title line with spacing
+	titleLineSpacerWidth := h.width - lipgloss.Width(title) - lipgloss.Width(rightContent)
+	if titleLineSpacerWidth < 1 {
+		titleLineSpacerWidth = 1
 	}
-	spacer := strings.Repeat(" ", spacerWidth)
+	titleLineSpacer := strings.Repeat(" ", titleLineSpacerWidth)
+	titleLine := lipgloss.JoinHorizontal(lipgloss.Top, title, titleLineSpacer, rightContent)
 
-	headerLine := lipgloss.JoinHorizontal(lipgloss.Top, title, filterInfo, spacer, rightContent)
+	// Build stats line (bv-y5sx)
+	statsLine := h.renderStatsLine()
+
+	// Build filter status line (bv-y5sx)
+	filterLine := h.renderFilterLine()
 
 	// Add separator line
 	separatorWidth := h.width
@@ -1133,7 +1107,131 @@ func (h *HistoryModel) renderHeader() string {
 		Width(h.width).
 		Render(strings.Repeat("─", separatorWidth))
 
-	return lipgloss.JoinVertical(lipgloss.Left, headerLine, separator)
+	return lipgloss.JoinVertical(lipgloss.Left, titleLine, statsLine, filterLine, separator)
+}
+
+// renderStatsLine renders the statistics badges line (bv-y5sx)
+func (h *HistoryModel) renderStatsLine() string {
+	if h.report == nil {
+		return ""
+	}
+
+	t := h.theme
+	stats := h.report.Stats
+
+	// Badge style - subtle background with contrasting text
+	badgeStyle := t.Renderer.NewStyle().
+		Foreground(t.Secondary).
+		Padding(0, 1)
+
+	// Value style - highlighted
+	valueStyle := t.Renderer.NewStyle().
+		Foreground(t.Primary).
+		Bold(true)
+
+	// Build stats badges
+	var badges []string
+
+	// Beads with commits
+	beadsBadge := badgeStyle.Render(valueStyle.Render(fmt.Sprintf("%d", stats.BeadsWithCommits)) + " beads")
+	badges = append(badges, beadsBadge)
+
+	// Total commits
+	commitsBadge := badgeStyle.Render(valueStyle.Render(fmt.Sprintf("%d", stats.TotalCommits)) + " commits")
+	badges = append(badges, commitsBadge)
+
+	// Unique authors
+	authorsBadge := badgeStyle.Render(valueStyle.Render(fmt.Sprintf("%d", stats.UniqueAuthors)) + " authors")
+	badges = append(badges, authorsBadge)
+
+	// Average cycle time (if available)
+	if stats.AvgCycleTimeDays != nil {
+		cycleStr := formatCycleTime(*stats.AvgCycleTimeDays)
+		cycleBadge := badgeStyle.Render("⌀ " + valueStyle.Render(cycleStr) + " cycle")
+		badges = append(badges, cycleBadge)
+	}
+
+	// Commits per bead
+	if stats.AvgCommitsPerBead > 0 {
+		cpdBadge := badgeStyle.Render(valueStyle.Render(fmt.Sprintf("%.1f", stats.AvgCommitsPerBead)) + " commits/bead")
+		badges = append(badges, cpdBadge)
+	}
+
+	// Join with bullet separator
+	separator := t.Renderer.NewStyle().Foreground(t.Muted).Render(" • ")
+	return strings.Join(badges, separator)
+}
+
+// renderFilterLine renders the current filter status (bv-y5sx)
+func (h *HistoryModel) renderFilterLine() string {
+	t := h.theme
+
+	filterStyle := t.Renderer.NewStyle().
+		Foreground(t.Muted).
+		Italic(true).
+		Padding(0, 1)
+
+	activeFilterStyle := t.Renderer.NewStyle().
+		Foreground(t.Secondary).
+		Padding(0, 1)
+
+	var parts []string
+
+	// Build active filters list
+	var activeFilters []string
+	if h.authorFilter != "" {
+		activeFilters = append(activeFilters, fmt.Sprintf("@%s", h.authorFilter))
+	}
+	if h.minConfidence > 0 {
+		activeFilters = append(activeFilters, fmt.Sprintf("≥%.0f%% conf", h.minConfidence*100))
+	}
+	if h.searchActive && h.searchInput.Value() != "" {
+		activeFilters = append(activeFilters, fmt.Sprintf("\"%s\"", h.searchInput.Value()))
+	}
+
+	// Show filter status
+	if len(activeFilters) > 0 {
+		parts = append(parts, activeFilterStyle.Render("Filter: "+strings.Join(activeFilters, ", ")))
+	}
+
+	// Show count based on mode
+	if h.viewMode == historyModeGit {
+		commits := h.GetFilteredCommitList()
+		totalCommits := len(h.commitList)
+		if len(commits) != totalCommits {
+			parts = append(parts, filterStyle.Render(fmt.Sprintf("Showing %d/%d commits", len(commits), totalCommits)))
+		} else {
+			parts = append(parts, filterStyle.Render(fmt.Sprintf("Showing all %d commits", totalCommits)))
+		}
+	} else {
+		totalBeads := 0
+		if h.report != nil {
+			totalBeads = len(h.report.Histories)
+		}
+		if len(h.histories) != totalBeads {
+			parts = append(parts, filterStyle.Render(fmt.Sprintf("Showing %d/%d beads", len(h.histories), totalBeads)))
+		} else {
+			parts = append(parts, filterStyle.Render(fmt.Sprintf("Showing all %d beads with commits", len(h.histories))))
+		}
+	}
+
+	return strings.Join(parts, "  │  ")
+}
+
+// formatCycleTime formats cycle time in days to a human-readable string
+func formatCycleTime(days float64) string {
+	if days < 1 {
+		hours := days * 24
+		if hours < 1 {
+			return fmt.Sprintf("%.0fm", hours*60)
+		}
+		return fmt.Sprintf("%.1fh", hours)
+	}
+	if days < 7 {
+		return fmt.Sprintf("%.1fd", days)
+	}
+	weeks := days / 7
+	return fmt.Sprintf("%.1fw", weeks)
 }
 
 // renderListPanel renders the left panel with bead list
