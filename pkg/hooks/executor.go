@@ -167,6 +167,8 @@ func (e *Executor) runHook(hook Hook, phase HookPhase) HookResult {
 }
 
 // expandEnv replaces ${VAR} or $VAR in the string using values from the env slice
+// Note: This only supports standard shell variable expansion. It does not support
+// complex shell parameter expansion like ${VAR:-default} or ${VAR:offset}.
 func expandEnv(s string, env []string) string {
 	return os.Expand(s, func(key string) string {
 		// Search env slice from end to beginning (to respect precedence if duplicates exist)

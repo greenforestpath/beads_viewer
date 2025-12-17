@@ -203,8 +203,9 @@ func LoadDefault() (*Loader, error) {
 
 // UnmarshalYAML implements custom YAML unmarshalling for Duration
 func (h *Hook) UnmarshalYAML(node *yaml.Node) error {
-	// Temporary struct without Duration for unmarshalling
-	type hookAlias struct {
+	// WARNING: This struct must match Hook definition exactly, except for Timeout which is string.
+	// If you add a field to Hook, you MUST add it here too.
+	type hookDTO struct {
 		Name    string            `yaml:"name"`
 		Command string            `yaml:"command"`
 		Timeout string            `yaml:"timeout,omitempty"`
@@ -212,23 +213,32 @@ func (h *Hook) UnmarshalYAML(node *yaml.Node) error {
 		OnError string            `yaml:"on_error,omitempty"`
 	}
 
-	var alias hookAlias
-	if err := node.Decode(&alias); err != nil {
+	var dto hookDTO
+	if err := node.Decode(&dto); err != nil {
 		return err
 	}
 
-	h.Name = alias.Name
-	h.Command = alias.Command
-	h.Env = alias.Env
-	h.OnError = alias.OnError
+	h.Name = dto.Name
+	h.Command = dto.Command
+	h.Env = dto.Env
+	h.OnError = dto.OnError
 
 	// Parse timeout
-	if alias.Timeout != "" {
-		d, err := time.ParseDuration(alias.Timeout)
-		if err != nil {
-			return fmt.Errorf("invalid timeout %q: %w", alias.Timeout, err)
+	if dto.Timeout != "" {
+		d, err := time.ParseDuration(dto.Timeout)
+		if err == nil {
+			h.Timeout = d
+		} else {
+			// Fallback: try numeric value (assumed seconds)
+			// This handles cases like "timeout: 30" which YAML decodes as string "30"
+			// but time.ParseDuration rejects (missing unit).
+			var seconds float64
+			if _, scanErr := fmt.Sscanf(dto.Timeout, "%f", &seconds); scanErr == nil {
+				h.Timeout = time.Duration(seconds * float64(time.Second))
+			} else {
+				return fmt.Errorf("invalid timeout %q: %w", dto.Timeout, err)
+			}
 		}
-		h.Timeout = d
 	}
 
 	return nil
