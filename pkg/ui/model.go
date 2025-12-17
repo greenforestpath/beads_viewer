@@ -2185,21 +2185,51 @@ func (m Model) handleActionableKeys(msg tea.KeyMsg) Model {
 // handleHistoryKeys handles keyboard input when history view is focused
 func (m Model) handleHistoryKeys(msg tea.KeyMsg) Model {
 	switch msg.String() {
+	case "v":
+		// Toggle between Bead mode and Git mode (bv-tl3n)
+		m.historyView.ToggleViewMode()
+		if m.historyView.IsGitMode() {
+			m.statusMsg = "🔀 Git Mode: commits on left, related beads on right"
+		} else {
+			m.statusMsg = "📦 Bead Mode: beads on left, commits on right"
+		}
+		m.statusIsError = false
 	case "j", "down":
-		m.historyView.MoveDown()
+		if m.historyView.IsGitMode() {
+			m.historyView.MoveDownGit()
+		} else {
+			m.historyView.MoveDown()
+		}
 	case "k", "up":
-		m.historyView.MoveUp()
+		if m.historyView.IsGitMode() {
+			m.historyView.MoveUpGit()
+		} else {
+			m.historyView.MoveUp()
+		}
 	case "J":
-		// Navigate to next commit within bead
-		m.historyView.NextCommit()
+		// In git mode: navigate to next related bead; in bead mode: next commit
+		if m.historyView.IsGitMode() {
+			m.historyView.NextRelatedBead()
+		} else {
+			m.historyView.NextCommit()
+		}
 	case "K":
-		// Navigate to previous commit within bead
-		m.historyView.PrevCommit()
+		// In git mode: navigate to prev related bead; in bead mode: prev commit
+		if m.historyView.IsGitMode() {
+			m.historyView.PrevRelatedBead()
+		} else {
+			m.historyView.PrevCommit()
+		}
 	case "tab":
 		m.historyView.ToggleFocus()
 	case "enter":
 		// Jump to selected bead in main list
-		selectedID := m.historyView.SelectedBeadID()
+		var selectedID string
+		if m.historyView.IsGitMode() {
+			selectedID = m.historyView.SelectedRelatedBeadID()
+		} else {
+			selectedID = m.historyView.SelectedBeadID()
+		}
 		if selectedID != "" {
 			for i, item := range m.list.Items() {
 				if issueItem, ok := item.(IssueItem); ok && issueItem.Issue.ID == selectedID {
@@ -2218,12 +2248,24 @@ func (m Model) handleHistoryKeys(msg tea.KeyMsg) Model {
 		}
 	case "y":
 		// Copy selected commit SHA to clipboard
-		if commit := m.historyView.SelectedCommit(); commit != nil {
-			if err := clipboard.WriteAll(commit.SHA); err != nil {
+		var sha, shortSHA string
+		if m.historyView.IsGitMode() {
+			if commit := m.historyView.SelectedGitCommit(); commit != nil {
+				sha = commit.SHA
+				shortSHA = commit.ShortSHA
+			}
+		} else {
+			if commit := m.historyView.SelectedCommit(); commit != nil {
+				sha = commit.SHA
+				shortSHA = commit.ShortSHA
+			}
+		}
+		if sha != "" {
+			if err := clipboard.WriteAll(sha); err != nil {
 				m.statusMsg = fmt.Sprintf("❌ Clipboard error: %v", err)
 				m.statusIsError = true
 			} else {
-				m.statusMsg = fmt.Sprintf("📋 Copied %s to clipboard", commit.ShortSHA)
+				m.statusMsg = fmt.Sprintf("📋 Copied %s to clipboard", shortSHA)
 				m.statusIsError = false
 			}
 		} else {
@@ -2231,18 +2273,20 @@ func (m Model) handleHistoryKeys(msg tea.KeyMsg) Model {
 			m.statusIsError = true
 		}
 	case "c":
-		// Cycle confidence threshold
-		m.historyView.CycleConfidence()
-		conf := m.historyView.GetMinConfidence()
-		if conf == 0 {
-			m.statusMsg = "🔍 Showing all commits"
-		} else {
-			m.statusMsg = fmt.Sprintf("🔍 Confidence filter: ≥%.0f%%", conf*100)
+		// Cycle confidence threshold (only in bead mode)
+		if !m.historyView.IsGitMode() {
+			m.historyView.CycleConfidence()
+			conf := m.historyView.GetMinConfidence()
+			if conf == 0 {
+				m.statusMsg = "🔍 Showing all commits"
+			} else {
+				m.statusMsg = fmt.Sprintf("🔍 Confidence filter: ≥%.0f%%", conf*100)
+			}
+			m.statusIsError = false
 		}
-		m.statusIsError = false
 	case "/":
 		// Search hint - actual search would require text input
-		m.statusMsg = "💡 Use 'f' for author filter, 'c' for confidence filter"
+		m.statusMsg = "💡 Use 'v' to toggle Git/Bead mode, 'c' for confidence filter"
 		m.statusIsError = false
 	case "f":
 		// Toggle author filter (simple toggle for now)

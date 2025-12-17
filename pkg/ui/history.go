@@ -18,6 +18,25 @@ const (
 	historyFocusDetail
 )
 
+// historyViewMode tracks bead-centric vs git-centric view (bv-tl3n)
+type historyViewMode int
+
+const (
+	historyModeBead historyViewMode = iota // Default: beads on left, commits for selected bead
+	historyModeGit                         // Git mode: commits on left, related beads for selected commit
+)
+
+// CommitListEntry represents a commit in git-centric mode (bv-tl3n)
+type CommitListEntry struct {
+	SHA       string
+	ShortSHA  string
+	Message   string
+	Author    string
+	Timestamp string
+	FileCount int
+	BeadIDs   []string // Beads related to this commit
+}
+
 // HistoryModel represents the TUI view for bead history and code correlations
 type HistoryModel struct {
 	// Data
@@ -30,6 +49,13 @@ type HistoryModel struct {
 	selectedCommit int // Index into selected bead's commits
 	scrollOffset   int // For scrolling the bead list
 	focused        historyFocus
+
+	// Git-centric mode state (bv-tl3n)
+	viewMode             historyViewMode
+	commitList           []CommitListEntry // All commits sorted by recency
+	selectedGitCommit    int               // Index into commitList
+	selectedRelatedBead  int               // Index into selected commit's BeadIDs
+	gitScrollOffset      int               // For scrolling the commit list
 
 	// Filters
 	authorFilter  string  // Filter by author (empty = all)
@@ -272,6 +298,169 @@ func (h *HistoryModel) ToggleExpand() {
 	}
 }
 
+// Git-Centric View Mode methods (bv-tl3n)
+
+// ToggleViewMode switches between Bead mode and Git mode
+func (h *HistoryModel) ToggleViewMode() {
+	if h.viewMode == historyModeBead {
+		h.viewMode = historyModeGit
+		h.buildCommitList()
+		h.selectedGitCommit = 0
+		h.selectedRelatedBead = 0
+		h.gitScrollOffset = 0
+	} else {
+		h.viewMode = historyModeBead
+		h.selectedBead = 0
+		h.selectedCommit = 0
+		h.scrollOffset = 0
+	}
+}
+
+// IsGitMode returns true if in git-centric view mode
+func (h *HistoryModel) IsGitMode() bool {
+	return h.viewMode == historyModeGit
+}
+
+// buildCommitList constructs the sorted commit list for git mode
+func (h *HistoryModel) buildCommitList() {
+	if h.report == nil {
+		h.commitList = nil
+		return
+	}
+
+	seen := make(map[string]bool)
+	var entries []CommitListEntry
+
+	// Collect all commits from all bead histories
+	for beadID, hist := range h.report.Histories {
+		for _, commit := range hist.Commits {
+			if seen[commit.SHA] {
+				// Already have this commit, just add the bead ID
+				for i := range entries {
+					if entries[i].SHA == commit.SHA {
+						// Check if bead already in list
+						found := false
+						for _, bid := range entries[i].BeadIDs {
+							if bid == beadID {
+								found = true
+								break
+							}
+						}
+						if !found {
+							entries[i].BeadIDs = append(entries[i].BeadIDs, beadID)
+						}
+						break
+					}
+				}
+				continue
+			}
+			seen[commit.SHA] = true
+
+			entries = append(entries, CommitListEntry{
+				SHA:       commit.SHA,
+				ShortSHA:  commit.ShortSHA,
+				Message:   commit.Message,
+				Author:    commit.Author,
+				Timestamp: commit.Timestamp.Format("2006-01-02 15:04"),
+				FileCount: len(commit.Files),
+				BeadIDs:   []string{beadID},
+			})
+		}
+	}
+
+	// Sort by timestamp descending (most recent first)
+	// Note: We parse from formatted string since we stored it that way
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Timestamp > entries[j].Timestamp
+	})
+
+	h.commitList = entries
+}
+
+// MoveUpGit moves selection up in git mode
+func (h *HistoryModel) MoveUpGit() {
+	if h.focused == historyFocusList {
+		if h.selectedGitCommit > 0 {
+			h.selectedGitCommit--
+			h.selectedRelatedBead = 0
+			h.ensureGitCommitVisible()
+		}
+	} else {
+		// In detail pane, move to previous related bead
+		if h.selectedRelatedBead > 0 {
+			h.selectedRelatedBead--
+		}
+	}
+}
+
+// MoveDownGit moves selection down in git mode
+func (h *HistoryModel) MoveDownGit() {
+	if h.focused == historyFocusList {
+		if h.selectedGitCommit < len(h.commitList)-1 {
+			h.selectedGitCommit++
+			h.selectedRelatedBead = 0
+			h.ensureGitCommitVisible()
+		}
+	} else {
+		// In detail pane, move to next related bead
+		if h.selectedGitCommit < len(h.commitList) {
+			beadCount := len(h.commitList[h.selectedGitCommit].BeadIDs)
+			if h.selectedRelatedBead < beadCount-1 {
+				h.selectedRelatedBead++
+			}
+		}
+	}
+}
+
+// NextRelatedBead moves to the next related bead in git mode (J key)
+func (h *HistoryModel) NextRelatedBead() {
+	if h.selectedGitCommit >= len(h.commitList) {
+		return
+	}
+	beadCount := len(h.commitList[h.selectedGitCommit].BeadIDs)
+	if h.selectedRelatedBead < beadCount-1 {
+		h.selectedRelatedBead++
+	}
+}
+
+// PrevRelatedBead moves to the previous related bead in git mode (K key)
+func (h *HistoryModel) PrevRelatedBead() {
+	if h.selectedRelatedBead > 0 {
+		h.selectedRelatedBead--
+	}
+}
+
+// SelectedGitCommit returns the selected commit in git mode
+func (h *HistoryModel) SelectedGitCommit() *CommitListEntry {
+	if h.selectedGitCommit < len(h.commitList) {
+		return &h.commitList[h.selectedGitCommit]
+	}
+	return nil
+}
+
+// SelectedRelatedBeadID returns the currently selected related bead ID in git mode
+func (h *HistoryModel) SelectedRelatedBeadID() string {
+	commit := h.SelectedGitCommit()
+	if commit != nil && h.selectedRelatedBead < len(commit.BeadIDs) {
+		return commit.BeadIDs[h.selectedRelatedBead]
+	}
+	return ""
+}
+
+// ensureGitCommitVisible adjusts scroll offset to keep selected commit visible
+func (h *HistoryModel) ensureGitCommitVisible() {
+	visibleItems := h.listHeight()
+	if visibleItems < 1 {
+		visibleItems = 1
+	}
+
+	if h.selectedGitCommit < h.gitScrollOffset {
+		h.gitScrollOffset = h.selectedGitCommit
+	} else if h.selectedGitCommit >= h.gitScrollOffset+visibleItems {
+		h.gitScrollOffset = h.selectedGitCommit - visibleItems + 1
+	}
+}
+
 // ensureBeadVisible adjusts scroll offset to keep selected bead visible
 func (h *HistoryModel) ensureBeadVisible() {
 	visibleItems := h.listHeight()
@@ -340,8 +529,15 @@ func (h *HistoryModel) View() string {
 		return h.renderEmpty("No history data loaded")
 	}
 
-	if len(h.histories) == 0 {
-		return h.renderEmpty("No beads with commit correlations found")
+	// In git mode, check commit list; in bead mode, check histories
+	if h.viewMode == historyModeGit {
+		if len(h.commitList) == 0 {
+			return h.renderEmpty("No commits with bead correlations found")
+		}
+	} else {
+		if len(h.histories) == 0 {
+			return h.renderEmpty("No beads with commit correlations found")
+		}
 	}
 
 	// Calculate panel widths (40% list, 60% detail)
@@ -351,11 +547,15 @@ func (h *HistoryModel) View() string {
 	// Render header
 	header := h.renderHeader()
 
-	// Render list panel
-	listPanel := h.renderListPanel(listWidth, h.height-2) // -2 for header
-
-	// Render detail panel
-	detailPanel := h.renderDetailPanel(detailWidth, h.height-2)
+	// Render panels based on view mode (bv-tl3n)
+	var listPanel, detailPanel string
+	if h.viewMode == historyModeGit {
+		listPanel = h.renderGitCommitListPanel(listWidth, h.height-2)
+		detailPanel = h.renderGitDetailPanel(detailWidth, h.height-2)
+	} else {
+		listPanel = h.renderListPanel(listWidth, h.height-2)
+		detailPanel = h.renderDetailPanel(detailWidth, h.height-2)
+	}
 
 	// Combine panels
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, listPanel, detailPanel)
@@ -388,11 +588,27 @@ func (h *HistoryModel) renderHeader() string {
 		Foreground(t.Secondary).
 		Padding(0, 1)
 
-	title := titleStyle.Render("BEAD HISTORY")
+	// Show view mode indicator (bv-tl3n)
+	var modeIndicator string
+	if h.viewMode == historyModeGit {
+		modeIndicator = "[Git Mode]"
+	} else {
+		modeIndicator = "[Bead Mode]"
+	}
+	modeStyle := t.Renderer.NewStyle().
+		Foreground(t.InProgress).
+		Bold(true).
+		Padding(0, 1)
+
+	title := titleStyle.Render("BEAD HISTORY") + modeStyle.Render(modeIndicator)
 
 	// Build filter info
 	var filters []string
-	filters = append(filters, fmt.Sprintf("%d/%d beads", len(h.histories), len(h.report.Histories)))
+	if h.viewMode == historyModeGit {
+		filters = append(filters, fmt.Sprintf("%d commits", len(h.commitList)))
+	} else {
+		filters = append(filters, fmt.Sprintf("%d/%d beads", len(h.histories), len(h.report.Histories)))
+	}
 
 	if h.authorFilter != "" {
 		filters = append(filters, fmt.Sprintf("Author: %s", h.authorFilter))
@@ -687,4 +903,231 @@ func methodLabel(method correlation.CorrelationMethod) string {
 	default:
 		return ""
 	}
+}
+
+// Git Mode rendering functions (bv-tl3n)
+
+// renderGitCommitListPanel renders the left panel with commit list in git mode
+func (h *HistoryModel) renderGitCommitListPanel(width, height int) string {
+	t := h.theme
+
+	// Panel border style based on focus
+	borderColor := t.Muted
+	if h.focused == historyFocusList {
+		borderColor = t.Primary
+	}
+
+	panelStyle := t.Renderer.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Width(width - 2).
+		Height(height - 2)
+
+	// Column header
+	headerStyle := t.Renderer.NewStyle().
+		Bold(true).
+		Foreground(t.Primary).
+		Width(width - 4)
+	header := headerStyle.Render("COMMITS")
+
+	// Build list content
+	var lines []string
+	lines = append(lines, header)
+	sepWidth := width - 4
+	if sepWidth < 1 {
+		sepWidth = 1
+	}
+	lines = append(lines, strings.Repeat("─", sepWidth))
+
+	visibleItems := height - 5
+	if visibleItems < 1 {
+		visibleItems = 1
+	}
+
+	for i := h.gitScrollOffset; i < len(h.commitList) && i < h.gitScrollOffset+visibleItems; i++ {
+		commit := h.commitList[i]
+		line := h.renderGitCommitLine(i, commit, width-4)
+		lines = append(lines, line)
+	}
+
+	// Pad with empty lines if needed
+	for len(lines) < height-2 {
+		lines = append(lines, "")
+	}
+
+	content := strings.Join(lines, "\n")
+	return panelStyle.Render(content)
+}
+
+// renderGitCommitLine renders a single commit in git mode list
+func (h *HistoryModel) renderGitCommitLine(idx int, commit CommitListEntry, width int) string {
+	t := h.theme
+
+	selected := idx == h.selectedGitCommit
+
+	// Indicator
+	indicator := "  "
+	if selected {
+		indicator = "▸ "
+	}
+
+	// Bead count badge
+	beadCount := fmt.Sprintf("[%d]", len(commit.BeadIDs))
+
+	// Truncate message
+	maxMsgLen := width - len(indicator) - len(commit.ShortSHA) - len(beadCount) - 6
+	if maxMsgLen < 10 {
+		maxMsgLen = 10
+	}
+	msg := commit.Message
+	if len(msg) > maxMsgLen {
+		msg = msg[:maxMsgLen-1] + "…"
+	}
+
+	// Build line
+	shaStyle := t.Renderer.NewStyle().Foreground(t.Primary)
+	msgStyle := t.Renderer.NewStyle()
+	countStyle := t.Renderer.NewStyle().Foreground(t.Secondary)
+
+	if selected && h.focused == historyFocusList {
+		shaStyle = shaStyle.Bold(true)
+		msgStyle = msgStyle.Bold(true)
+	}
+
+	line := fmt.Sprintf("%s%s %s %s",
+		indicator,
+		shaStyle.Render(commit.ShortSHA),
+		msgStyle.Render(msg),
+		countStyle.Render(beadCount),
+	)
+
+	return line
+}
+
+// renderGitDetailPanel renders the right panel with related beads and commit details in git mode
+func (h *HistoryModel) renderGitDetailPanel(width, height int) string {
+	t := h.theme
+
+	// Panel border style based on focus
+	borderColor := t.Muted
+	if h.focused == historyFocusDetail {
+		borderColor = t.Primary
+	}
+
+	panelStyle := t.Renderer.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Width(width - 2).
+		Height(height - 2)
+
+	commit := h.SelectedGitCommit()
+	if commit == nil {
+		return panelStyle.Render("No commit selected")
+	}
+
+	var lines []string
+
+	// Header: Related Beads
+	headerStyle := t.Renderer.NewStyle().
+		Bold(true).
+		Foreground(t.Primary)
+	lines = append(lines, headerStyle.Render("RELATED BEADS"))
+
+	detailSepWidth := width - 4
+	if detailSepWidth < 1 {
+		detailSepWidth = 1
+	}
+	lines = append(lines, strings.Repeat("─", detailSepWidth))
+
+	// List related beads
+	for i, beadID := range commit.BeadIDs {
+		isSelected := i == h.selectedRelatedBead && h.focused == historyFocusDetail
+
+		indicator := "  "
+		if isSelected {
+			indicator = "▸ "
+		}
+
+		// Get bead info from report
+		beadStyle := t.Renderer.NewStyle()
+		statusIcon := "○"
+		title := beadID
+
+		if h.report != nil {
+			if hist, ok := h.report.Histories[beadID]; ok {
+				title = hist.Title
+				switch hist.Status {
+				case "closed":
+					statusIcon = "✓"
+				case "in_progress":
+					statusIcon = "●"
+				}
+			}
+		}
+
+		if isSelected {
+			beadStyle = beadStyle.Bold(true).Foreground(t.Primary)
+		}
+
+		// Truncate title
+		maxLen := width - 8
+		if maxLen < 10 {
+			maxLen = 10
+		}
+		if len(title) > maxLen {
+			title = title[:maxLen-1] + "…"
+		}
+
+		beadLine := fmt.Sprintf("%s%s %s %s", indicator, statusIcon, beadID, beadStyle.Render(title))
+		lines = append(lines, beadLine)
+	}
+
+	// Add separator before commit details
+	lines = append(lines, "")
+	lines = append(lines, strings.Repeat("─", detailSepWidth))
+	lines = append(lines, headerStyle.Render("COMMIT DETAILS"))
+	lines = append(lines, strings.Repeat("─", detailSepWidth))
+
+	// Commit details
+	shaLine := fmt.Sprintf("SHA: %s", commit.SHA)
+	if width > 10 && len(shaLine) > width-6 {
+		shaLine = shaLine[:width-7] + "…"
+	}
+	lines = append(lines, t.Renderer.NewStyle().Foreground(t.Primary).Render(shaLine))
+
+	authorLine := fmt.Sprintf("Author: %s", commit.Author)
+	if width > 10 && len(authorLine) > width-6 {
+		authorLine = authorLine[:width-7] + "…"
+	}
+	lines = append(lines, t.Renderer.NewStyle().Foreground(t.Secondary).Render(authorLine))
+
+	dateLine := fmt.Sprintf("Date: %s", commit.Timestamp)
+	lines = append(lines, t.Renderer.NewStyle().Foreground(t.Muted).Render(dateLine))
+
+	filesLine := fmt.Sprintf("Files: %d changed", commit.FileCount)
+	lines = append(lines, t.Renderer.NewStyle().Foreground(t.Muted).Render(filesLine))
+
+	// Message
+	lines = append(lines, "")
+	msgStyle := t.Renderer.NewStyle().Foreground(t.Base.GetForeground())
+	msgLines := strings.Split(commit.Message, "\n")
+	for _, ml := range msgLines {
+		if width > 6 && len(ml) > width-6 {
+			ml = ml[:width-7] + "…"
+		}
+		lines = append(lines, msgStyle.Render(ml))
+	}
+
+	// Pad with empty lines
+	for len(lines) < height-2 {
+		lines = append(lines, "")
+	}
+
+	// Truncate if too many lines
+	if len(lines) > height-2 {
+		lines = lines[:height-2]
+	}
+
+	content := strings.Join(lines, "\n")
+	return panelStyle.Render(content)
 }
