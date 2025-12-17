@@ -162,7 +162,7 @@ func TestCheckGHStatus_Integration(t *testing.T) {
 	}
 
 	if status == nil {
-		t.Error("CheckGHStatus() returned nil status")
+		t.Fatal("CheckGHStatus() returned nil status")
 	}
 
 	// Log the status for debugging (won't fail test)

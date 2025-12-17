@@ -318,7 +318,7 @@ func (w *Wizard) checkPrerequisites() error {
 					return fmt.Errorf("authentication failed")
 				}
 			} else {
-				return fmt.Errorf("Cloudflare authentication required")
+				return fmt.Errorf("cloudflare authentication required")
 			}
 		}
 		if status.AccountName != "" {

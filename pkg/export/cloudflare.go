@@ -312,10 +312,10 @@ func DeployToCloudflarePages(config CloudflareDeployConfig) (*CloudflareDeployRe
 	if !status.Authenticated {
 		fmt.Println("\nYou are not authenticated with Cloudflare.")
 		if config.SkipConfirmation {
-			return nil, fmt.Errorf("Cloudflare authentication required - run 'wrangler login' first")
+			return nil, fmt.Errorf("cloudflare authentication required - run 'wrangler login' first")
 		}
 		if !cloudflareConfirmPrompt("Would you like to authenticate now?") {
-			return nil, fmt.Errorf("Cloudflare authentication required")
+			return nil, fmt.Errorf("cloudflare authentication required")
 		}
 		if err := AuthenticateWrangler(); err != nil {
 			return nil, err

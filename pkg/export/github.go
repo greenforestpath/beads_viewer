@@ -152,7 +152,7 @@ func AttemptGHInstall() error {
 
 	// Check if Homebrew is installed
 	if _, err := exec.LookPath("brew"); err != nil {
-		return fmt.Errorf("Homebrew not found - install gh CLI manually from https://cli.github.com/")
+		return fmt.Errorf("homebrew not found - install gh CLI manually from https://cli.github.com/")
 	}
 
 	fmt.Println("Installing gh CLI via Homebrew...")
@@ -520,8 +520,8 @@ func CheckGitHubPagesStatus(repoFullName string) (*GitHubPagesStatus, error) {
 	}
 
 	var response struct {
-		HTMLURL   string `json:"html_url"`
-		Source    struct {
+		HTMLURL string `json:"html_url"`
+		Source  struct {
 			Branch string `json:"branch"`
 			Path   string `json:"path"`
 		} `json:"source"`

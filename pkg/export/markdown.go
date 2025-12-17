@@ -535,11 +535,11 @@ func isShellSafeChar(r rune) bool {
 
 // PriorityBriefConfig configures the priority brief generation
 type PriorityBriefConfig struct {
-	MaxRecommendations int  // Max recommendations to include (default: 5)
-	MaxQuickWins       int  // Max quick wins to include (default: 3)
-	MaxBlockers        int  // Max blockers to include (default: 3)
-	IncludeWhatIf      bool // Include what-if deltas
-	IncludeLegend      bool // Include metric legend
+	MaxRecommendations int    // Max recommendations to include (default: 5)
+	MaxQuickWins       int    // Max quick wins to include (default: 3)
+	MaxBlockers        int    // Max blockers to include (default: 3)
+	IncludeWhatIf      bool   // Include what-if deltas
+	IncludeLegend      bool   // Include metric legend
 	DataHash           string // Optional data hash for verification
 }
 
@@ -558,56 +558,6 @@ func DefaultPriorityBriefConfig() PriorityBriefConfig {
 // This is designed for human readability and can be rendered to PNG
 func GeneratePriorityBrief(triage interface{}, config PriorityBriefConfig) string {
 	var sb strings.Builder
-
-	// Cast to TriageResult-like interface (to avoid import cycle)
-	type triageData struct {
-		Meta struct {
-			Version       string    `json:"version"`
-			GeneratedAt   time.Time `json:"generated_at"`
-			Phase2Ready   bool      `json:"phase2_ready"`
-			IssueCount    int       `json:"issue_count"`
-		}
-		QuickRef struct {
-			OpenCount       int `json:"open_count"`
-			ActionableCount int `json:"actionable_count"`
-			BlockedCount    int `json:"blocked_count"`
-			InProgressCount int `json:"in_progress_count"`
-			TopPicks []struct {
-				ID       string   `json:"id"`
-				Title    string   `json:"title"`
-				Score    float64  `json:"score"`
-				Reasons  []string `json:"reasons"`
-				Unblocks int      `json:"unblocks"`
-			}
-		}
-		Recommendations []struct {
-			ID        string  `json:"id"`
-			Title     string  `json:"title"`
-			Type      string  `json:"type"`
-			Status    string  `json:"status"`
-			Priority  int     `json:"priority"`
-			Score     float64 `json:"score"`
-			Action    string  `json:"action"`
-			Reasons   []string `json:"reasons"`
-			Breakdown struct {
-				PageRankNorm      float64 `json:"pagerank_norm"`
-				BetweennessNorm   float64 `json:"betweenness_norm"`
-				TimeToImpactNorm  float64 `json:"time_to_impact_norm"`
-			}
-		}
-		QuickWins []struct {
-			ID     string  `json:"id"`
-			Title  string  `json:"title"`
-			Score  float64 `json:"score"`
-			Reason string  `json:"reason"`
-		}
-		BlockersToClear []struct {
-			ID            string `json:"id"`
-			Title         string `json:"title"`
-			UnblocksCount int    `json:"unblocks_count"`
-			Actionable    bool   `json:"actionable"`
-		}
-	}
 
 	// Use reflection or JSON marshal/unmarshal to access fields
 	// For simplicity, we'll use direct field access assuming the types match
@@ -662,17 +612,17 @@ func GeneratePriorityBriefFromTriageJSON(triageJSON []byte, config PriorityBrief
 	// Parse the JSON
 	var triage struct {
 		Meta struct {
-			Version       string    `json:"version"`
-			GeneratedAt   time.Time `json:"generated_at"`
-			Phase2Ready   bool      `json:"phase2_ready"`
-			IssueCount    int       `json:"issue_count"`
+			Version     string    `json:"version"`
+			GeneratedAt time.Time `json:"generated_at"`
+			Phase2Ready bool      `json:"phase2_ready"`
+			IssueCount  int       `json:"issue_count"`
 		} `json:"meta"`
 		QuickRef struct {
 			OpenCount       int `json:"open_count"`
 			ActionableCount int `json:"actionable_count"`
 			BlockedCount    int `json:"blocked_count"`
 			InProgressCount int `json:"in_progress_count"`
-			TopPicks []struct {
+			TopPicks        []struct {
 				ID       string   `json:"id"`
 				Title    string   `json:"title"`
 				Score    float64  `json:"score"`
@@ -690,9 +640,9 @@ func GeneratePriorityBriefFromTriageJSON(triageJSON []byte, config PriorityBrief
 			Action    string   `json:"action"`
 			Reasons   []string `json:"reasons"`
 			Breakdown struct {
-				PageRankNorm      float64 `json:"pagerank_norm"`
-				BetweennessNorm   float64 `json:"betweenness_norm"`
-				TimeToImpactNorm  float64 `json:"time_to_impact_norm"`
+				PageRankNorm     float64 `json:"pagerank_norm"`
+				BetweennessNorm  float64 `json:"betweenness_norm"`
+				TimeToImpactNorm float64 `json:"time_to_impact_norm"`
 			} `json:"breakdown"`
 		} `json:"recommendations"`
 		QuickWins []struct {
@@ -727,8 +677,8 @@ func GeneratePriorityBriefFromTriageJSON(triageJSON []byte, config PriorityBrief
 
 	// Summary stats
 	sb.WriteString("## 📈 Summary\n\n")
-	sb.WriteString(fmt.Sprintf("| Open | In Progress | Blocked | Actionable |\n"))
-	sb.WriteString(fmt.Sprintf("|:----:|:-----------:|:-------:|:----------:|\n"))
+	sb.WriteString("| Open | In Progress | Blocked | Actionable |\n")
+	sb.WriteString("|:----:|:-----------:|:-------:|:----------:|\n")
 	sb.WriteString(fmt.Sprintf("| %d | %d | %d | %d |\n\n",
 		triage.QuickRef.OpenCount,
 		triage.QuickRef.InProgressCount,
