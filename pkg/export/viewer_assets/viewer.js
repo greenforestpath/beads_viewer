@@ -1781,6 +1781,10 @@ function beadsApp() {
     forceGraphModule: null,
     graphDetailNode: null, // Currently selected node for detail pane
 
+    // Heatmap & metrics mode
+    graphHeatmapActive: false,
+    graphSizeMetric: 'pagerank', // pagerank | betweenness | critical | indegree
+
     // Critical path highlighting
     showCriticalPath: false,
     criticalPathData: null, // { path: [issueIds], length: number, animating: boolean }
@@ -2113,18 +2117,10 @@ function beadsApp() {
           this.forceGraphModule = await import('./graph.js');
         }
 
-        // Load pre-computed layout for instant rendering (~30KB)
+        // Always use dynamic force simulation - it produces much better layouts
+        // Pre-computed positions are still exported but only used for metrics, not positions
         let precomputedLayout = null;
-        if (this.forceGraphModule.loadPrecomputedLayout) {
-          try {
-            precomputedLayout = await this.forceGraphModule.loadPrecomputedLayout();
-            if (precomputedLayout) {
-              console.log('[ForceGraph] Pre-computed layout loaded - instant rendering enabled');
-            }
-          } catch (layoutErr) {
-            console.log('[ForceGraph] No pre-computed layout, using dynamic simulation');
-          }
-        }
+        console.log('[ForceGraph] Using live force simulation for optimal layout');
 
         if (!this.forceGraphReady) {
           await this.forceGraphModule.initGraph('graph-container');
@@ -2145,6 +2141,16 @@ function beadsApp() {
             this.graphDetailNode = null;
             // Resize graph after detail pane closes
             setTimeout(() => this.resizeForceGraph(), 250);
+          });
+
+          // Sync heatmap state when toggled via keyboard shortcut
+          document.addEventListener('bv-graph:heatmapToggle', (e) => {
+            this.graphHeatmapActive = e.detail?.active ?? false;
+          });
+
+          // Sync metric state when changed
+          document.addEventListener('bv-graph:metricChange', (e) => {
+            this.graphSizeMetric = e.detail?.metric ?? 'pagerank';
           });
         }
 
@@ -2620,6 +2626,37 @@ function beadsApp() {
     getGraphPresets() {
       if (!this.forceGraphModule?.getLayoutPresets) return {};
       return this.forceGraphModule.getLayoutPresets();
+    },
+
+    /**
+     * Toggle heatmap mode in the graph
+     */
+    toggleGraphHeatmap() {
+      if (!this.forceGraphModule?.toggleHeatmap) {
+        showToast('Heatmap not available', 'warning');
+        return;
+      }
+      this.graphHeatmapActive = this.forceGraphModule.toggleHeatmap();
+      showToast(this.graphHeatmapActive ? 'Heatmap ON' : 'Heatmap OFF', 'info');
+    },
+
+    /**
+     * Set the metric used for heatmap coloring and node sizing
+     */
+    setGraphSizeMetric(metric) {
+      if (!this.forceGraphModule?.setSizeMetric) {
+        showToast('Metric selection not available', 'warning');
+        return;
+      }
+      this.forceGraphModule.setSizeMetric(metric);
+      this.graphSizeMetric = metric;
+      const metricLabels = {
+        pagerank: 'PageRank',
+        betweenness: 'Betweenness Centrality',
+        critical: 'Critical Path Depth',
+        indegree: 'In-Degree (Blockers)'
+      };
+      showToast(`Metric: ${metricLabels[metric] || metric}`, 'info');
     },
 
     /**
