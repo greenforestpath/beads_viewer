@@ -87,7 +87,12 @@ func (e *SQLiteExporter) Export(outputDir string) error {
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
-	defer db.Close()
+	dbClosed := false
+	defer func() {
+		if !dbClosed {
+			db.Close()
+		}
+	}()
 
 	// Create schema
 	if err := CreateSchema(db); err != nil {
@@ -135,10 +140,11 @@ func (e *SQLiteExporter) Export(outputDir string) error {
 		return fmt.Errorf("optimize database: %w", err)
 	}
 
-	// Close database before chunking
+	// Close database before chunking (mark as closed so defer doesn't double-close)
 	if err := db.Close(); err != nil {
 		return fmt.Errorf("close database: %w", err)
 	}
+	dbClosed = true
 
 	// Write robot JSON outputs
 	if e.Config.IncludeRobotOutputs {
@@ -229,6 +235,9 @@ func (e *SQLiteExporter) insertDependencies(db *sql.DB) error {
 	defer stmt.Close()
 
 	for _, dep := range e.Deps {
+		if dep == nil {
+			continue
+		}
 		_, err := stmt.Exec(dep.IssueID, dep.DependsOnID, string(dep.Type))
 		if err != nil {
 			return fmt.Errorf("insert dependency %s->%s: %w", dep.IssueID, dep.DependsOnID, err)
@@ -640,7 +649,7 @@ func (e *SQLiteExporter) writeGraphLayout(dataDir string) error {
 	blocks := make(map[string][]string)
 
 	for _, dep := range e.Deps {
-		if dep.Type.IsBlocking() {
+		if dep != nil && dep.Type.IsBlocking() {
 			blockedBy[dep.IssueID] = append(blockedBy[dep.IssueID], dep.DependsOnID)
 			blocks[dep.DependsOnID] = append(blocks[dep.DependsOnID], dep.IssueID)
 		}
@@ -733,7 +742,7 @@ func (e *SQLiteExporter) writeGraphLayout(dataDir string) error {
 
 	var links [][2]string
 	for _, dep := range e.Deps {
-		if dep.Type.IsBlocking() {
+		if dep != nil && dep.Type.IsBlocking() {
 			links = append(links, [2]string{dep.DependsOnID, dep.IssueID})
 		}
 	}
