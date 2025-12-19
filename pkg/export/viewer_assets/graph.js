@@ -296,16 +296,22 @@ class GraphStore {
 const store = new GraphStore();
 
 /**
- * Helper to force ForceGraph to redraw
- * ForceGraph doesn't have a .refresh() method - we trigger redraw by
- * calling .graphData() with the current data which forces a re-render
+ * Helper to force ForceGraph to redraw without disturbing the simulation.
+ * Uses a micro zoom adjustment trick - imperceptible to users but forces canvas redraw.
+ * This avoids the "wiggle" caused by graphData() potentially reheating the simulation.
  */
 function refreshGraph() {
     if (!store.graph) return;
-    const currentData = store.graph.graphData();
-    if (currentData) {
-        store.graph.graphData(currentData);
-    }
+    // Get current zoom level
+    const currentZoom = store.graph.zoom();
+    // Guard against undefined/NaN zoom values
+    if (typeof currentZoom !== 'number' || isNaN(currentZoom)) return;
+    // Apply imperceptible zoom change (0.0001% = invisible) with 0ms duration (instant)
+    store.graph.zoom(currentZoom * 1.000001, 0);
+    // Immediately restore - this triggers a redraw without any visual change
+    requestAnimationFrame(() => {
+        if (store.graph) store.graph.zoom(currentZoom, 0);
+    });
 }
 
 // ============================================================================
@@ -1291,6 +1297,40 @@ function getLinkColor(link) {
         return THEME.accent.pink; // Distinct color for cross-label dependencies
     }
 
+    // Heatmap mode: color links by slack/urgency of connected nodes
+    // Low slack = urgent (orange/red), high slack = relaxed (cyan/blue)
+    // Only apply if at least one node has real slack data (not undefined/Infinity)
+    if (store.heatmapMode && sourceNode && targetNode) {
+        const srcSlack = sourceNode.slack;
+        const tgtSlack = targetNode.slack;
+        // Only color by slack if at least one node has real slack data
+        const srcHasSlack = srcSlack !== undefined && srcSlack !== null && srcSlack !== Infinity;
+        const tgtHasSlack = tgtSlack !== undefined && tgtSlack !== null && tgtSlack !== Infinity;
+
+        if (srcHasSlack || tgtHasSlack) {
+            // Use minimum slack of nodes that have data
+            const minSlack = Math.min(
+                srcHasSlack ? srcSlack : Infinity,
+                tgtHasSlack ? tgtSlack : Infinity
+            );
+
+            // Normalize slack (0-14 days typical range, cap at 14)
+            const normalizedSlack = Math.min(minSlack, 14) / 14;
+
+            // Color gradient: red (urgent) -> orange -> yellow -> cyan (relaxed)
+            if (normalizedSlack < 0.25) {
+                return THEME.priority.p0 + 'aa'; // Red with alpha (very urgent)
+            } else if (normalizedSlack < 0.5) {
+                return THEME.priority.p1 + 'aa'; // Orange (moderately urgent)
+            } else if (normalizedSlack < 0.75) {
+                return THEME.accent.yellow + 'aa'; // Yellow (some slack)
+            } else {
+                return THEME.accent.cyan + '88'; // Cyan (plenty of slack)
+            }
+        }
+        // If neither node has slack data, fall through to default color
+    }
+
     return THEME.link.default;
 }
 
@@ -1319,7 +1359,8 @@ function getLinkOpacity(link) {
 }
 
 /**
- * Get link width based on metric or highlight state
+ * Get link width based on metric or highlight state.
+ * Links connecting high-importance nodes (by PageRank, betweenness) are thicker.
  */
 function getLinkWidth(link, globalScale) {
     const sourceNode = typeof link.source === 'object' ? link.source : store.nodeMap.get(link.source);
@@ -1341,6 +1382,27 @@ function getLinkWidth(link, globalScale) {
     // Critical path edges
     if (sourceNode?.criticalDepth > 0 && targetNode?.criticalDepth > 0) {
         return Math.max(2, 2 / globalScale);
+    }
+
+    // Metric-based width scaling when heatmap is active
+    // Links connecting high-importance nodes get thicker edges
+    if (store.heatmapMode && sourceNode && targetNode) {
+        // Combine metrics: use average of source+target importance
+        const srcPagerank = sourceNode.pagerank || 0;
+        const tgtPagerank = targetNode.pagerank || 0;
+        const srcBetweenness = sourceNode.betweenness || 0;
+        const tgtBetweenness = targetNode.betweenness || 0;
+
+        // Normalize by max values
+        const avgPagerank = (srcPagerank + tgtPagerank) / 2 / (store.maxMetrics.pagerank || 1);
+        const avgBetweenness = (srcBetweenness + tgtBetweenness) / 2 / (store.maxMetrics.betweenness || 1);
+
+        // Combine metrics (70% PageRank, 30% betweenness for importance)
+        const importance = avgPagerank * 0.7 + avgBetweenness * 0.3;
+
+        // Scale width from 1 to 3 based on importance
+        const baseWidth = 1 + importance * 2;
+        return Math.max(baseWidth, baseWidth / globalScale);
     }
 
     // Default width
@@ -2645,8 +2707,135 @@ function setupKeyboardShortcuts() {
                     togglePlay();
                 }
                 break;
+            case 'ArrowLeft':
+            case 'ArrowRight':
+                // Navigate nodes by priority order (P0 first, then by PageRank within priority)
+                e.preventDefault();
+                navigateByPriority(e.key === 'ArrowRight' ? 1 : -1);
+                break;
+            case 'ArrowUp':
+            case 'ArrowDown':
+                // Navigate between k-core cliques (up = higher cohesion, down = lower)
+                e.preventDefault();
+                navigateByKCore(e.key === 'ArrowUp' ? 1 : -1);
+                break;
         }
     });
+}
+
+/**
+ * Navigate nodes by priority order (P0 first, then P1, etc., sorted by PageRank within each priority)
+ * @param {number} direction - 1 for next, -1 for previous
+ */
+function navigateByPriority(direction) {
+    const graphData = store.graph?.graphData();
+    if (!graphData?.nodes?.length) return;
+
+    // Sort nodes by priority (ascending), then by PageRank (descending)
+    const sortedNodes = [...graphData.nodes]
+        .filter(n => n.status !== 'closed') // Only open/in-progress
+        .sort((a, b) => {
+            const pDiff = (a.priority ?? 99) - (b.priority ?? 99);
+            if (pDiff !== 0) return pDiff;
+            return (b.pagerank || 0) - (a.pagerank || 0);
+        });
+
+    if (sortedNodes.length === 0) return;
+
+    // Find current position
+    const currentId = store.selectedNode?.id;
+    let currentIdx = currentId ? sortedNodes.findIndex(n => n.id === currentId) : -1;
+
+    // Calculate new index with wrapping
+    let newIdx;
+    if (currentIdx === -1) {
+        newIdx = direction > 0 ? 0 : sortedNodes.length - 1;
+    } else {
+        newIdx = (currentIdx + direction + sortedNodes.length) % sortedNodes.length;
+    }
+
+    // Select and center on the node
+    const targetNode = sortedNodes[newIdx];
+    selectAndCenterNode(targetNode);
+}
+
+/**
+ * Navigate between k-core cliques (up = higher k-core, down = lower k-core)
+ * @param {number} direction - 1 for higher k-core, -1 for lower k-core
+ */
+function navigateByKCore(direction) {
+    const graphData = store.graph?.graphData();
+    if (!graphData?.nodes?.length) return;
+
+    // Get all unique k-core values and sort them
+    const kCores = [...new Set(graphData.nodes.map(n => n.kcore ?? 0))].sort((a, b) => a - b);
+    if (kCores.length === 0) return;
+
+    // Find current k-core level
+    const currentKCore = store.selectedNode?.kcore ?? 0;
+    let currentKCoreIdx = kCores.indexOf(currentKCore);
+    if (currentKCoreIdx === -1) currentKCoreIdx = 0;
+
+    // Get nodes in the current k-core level
+    const currentKCoreNodes = graphData.nodes.filter(n => (n.kcore ?? 0) === kCores[currentKCoreIdx]);
+    const currentIdx = currentKCoreNodes.findIndex(n => n.id === store.selectedNode?.id);
+
+    let targetNode;
+
+    if (direction > 0) {
+        // Up: Try next node in current k-core, or jump to next higher k-core
+        if (currentIdx >= 0 && currentIdx < currentKCoreNodes.length - 1) {
+            targetNode = currentKCoreNodes[currentIdx + 1];
+        } else if (currentKCoreIdx < kCores.length - 1) {
+            // Jump to first node in next higher k-core
+            const higherKCoreNodes = graphData.nodes.filter(n => (n.kcore ?? 0) === kCores[currentKCoreIdx + 1]);
+            targetNode = higherKCoreNodes[0];
+        } else {
+            // Wrap to first node in lowest k-core
+            const lowestKCoreNodes = graphData.nodes.filter(n => (n.kcore ?? 0) === kCores[0]);
+            targetNode = lowestKCoreNodes[0];
+        }
+    } else {
+        // Down: Try previous node in current k-core, or jump to next lower k-core
+        if (currentIdx > 0) {
+            targetNode = currentKCoreNodes[currentIdx - 1];
+        } else if (currentKCoreIdx > 0) {
+            // Jump to last node in next lower k-core
+            const lowerKCoreNodes = graphData.nodes.filter(n => (n.kcore ?? 0) === kCores[currentKCoreIdx - 1]);
+            targetNode = lowerKCoreNodes[lowerKCoreNodes.length - 1];
+        } else {
+            // Wrap to last node in highest k-core
+            const highestKCoreNodes = graphData.nodes.filter(n => (n.kcore ?? 0) === kCores[kCores.length - 1]);
+            targetNode = highestKCoreNodes[highestKCoreNodes.length - 1];
+        }
+    }
+
+    if (targetNode) {
+        selectAndCenterNode(targetNode);
+    }
+}
+
+/**
+ * Select a node and center the view on it
+ */
+function selectAndCenterNode(node) {
+    if (!node || !store.graph) return;
+
+    // Select the node
+    store.selectedNode = node;
+    updateConnectedNodes(node);
+    showTooltip(node);
+
+    // Center and zoom to the node
+    if (typeof node.x === 'number' && typeof node.y === 'number') {
+        store.graph.centerAt(node.x, node.y, 500);
+    }
+
+    // Refresh display
+    refreshGraph();
+
+    // Dispatch selection event
+    dispatchEvent('nodeSelect', { node });
 }
 
 // ============================================================================
@@ -2681,6 +2870,42 @@ function showTooltip(node) {
     const statusColor = THEME.status[node.status];
     const priorityColor = THEME.priority[node.priority];
 
+    // Format slack as human-readable time
+    const formatSlack = (slack) => {
+        if (slack === undefined || slack === null || !isFinite(slack)) return '—';
+        if (isNaN(slack)) return '—';
+        if (slack < 1) return `${Math.round(slack * 24)}h`;
+        if (slack < 7) return `${slack.toFixed(1)}d`;
+        return `${Math.round(slack / 7)}w`;
+    };
+
+    // Safe number formatter for metrics
+    const safeMetric = (val, decimals = 1, suffix = '') => {
+        if (val === undefined || val === null || typeof val !== 'number' || !isFinite(val)) return '—';
+        return val.toFixed(decimals) + suffix;
+    };
+
+    // Build extended metrics section
+    const extendedMetrics = [];
+    if (node.betweenness !== undefined && isFinite(node.betweenness)) {
+        extendedMetrics.push(`<span title="Bottleneck centrality">Between: ${safeMetric(node.betweenness * 100, 1, '%')}</span>`);
+    }
+    if (node.kcore !== undefined && isFinite(node.kcore)) {
+        extendedMetrics.push(`<span title="Cluster cohesion level">K-core: ${node.kcore}</span>`);
+    }
+    if (node.hitsHub !== undefined || node.hitsAuth !== undefined) {
+        const hub = safeMetric(node.hitsHub !== undefined ? node.hitsHub * 100 : undefined, 0);
+        const auth = safeMetric(node.hitsAuth !== undefined ? node.hitsAuth * 100 : undefined, 0);
+        extendedMetrics.push(`<span title="Hub/Authority scores">HITS: ${hub}/${auth}</span>`);
+    }
+    if (node.eigenvector !== undefined && isFinite(node.eigenvector)) {
+        extendedMetrics.push(`<span title="Influence centrality">Eigen: ${safeMetric(node.eigenvector * 100, 1, '%')}</span>`);
+    }
+    if (node.slack !== undefined && isFinite(node.slack)) {
+        const slackColor = node.slack < 3 ? THEME.priority.p0 : node.slack < 7 ? THEME.priority.p1 : THEME.fgMuted;
+        extendedMetrics.push(`<span style="color: ${slackColor}" title="Schedule flexibility">Slack: ${formatSlack(node.slack)}</span>`);
+    }
+
     tooltipEl.innerHTML = `
         <div style="font-weight: 600; margin-bottom: 8px; color: ${THEME.accent.cyan}">
             ${icon} ${node.id}
@@ -2697,10 +2922,11 @@ function showTooltip(node) {
             </span>
         </div>
         <div style="font-size: 10px; color: ${THEME.fgMuted}; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-            <span>Blockers: ${node.blockerCount}</span>
-            <span>Dependents: ${node.dependentCount}</span>
-            <span>PageRank: ${(node.pagerank * 100).toFixed(1)}%</span>
-            <span>Depth: ${node.criticalDepth}</span>
+            <span>Blockers: ${node.blockerCount ?? 0}</span>
+            <span>Dependents: ${node.dependentCount ?? 0}</span>
+            <span>PageRank: ${safeMetric(node.pagerank !== undefined ? node.pagerank * 100 : undefined, 1, '%')}</span>
+            <span>Depth: ${node.criticalDepth ?? 0}</span>
+            ${extendedMetrics.join('')}
         </div>
         ${node.labels?.length ? `
             <div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">

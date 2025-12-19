@@ -345,6 +345,16 @@
               </svg>
             </button>
 
+            <!-- Help button - opens keyboard shortcuts modal -->
+            <button @click="showKeyboardHelp = true"
+                    class="p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors group"
+                    title="Help & Keyboard Shortcuts (?)"
+                    aria-label="Help and keyboard shortcuts">
+              <svg class="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-beads-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </button>
+
             <!-- Dark mode toggle - Premium animated, larger touch target -->
             <button @click="toggleDarkMode()"
                     class="relative p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 transition-colors"
@@ -939,7 +949,7 @@
         </div>
 
         <!-- Charts Dashboard (bv-wb6h) -->
-        <div x-data="{ chartsExpanded: false }" class="mb-8">
+        <div x-data="{ chartsExpanded: true }" class="mb-8">
           <button @click="chartsExpanded = !chartsExpanded"
                   class="w-full flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
             <div class="flex items-center space-x-3">
@@ -1227,10 +1237,10 @@
                 <div x-show="searchMode === 'hybrid' && issue.hybrid_score !== undefined"
                      class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
                   <span class="font-medium text-gray-600 dark:text-gray-300">Hybrid:</span>
-                  <span x-text="issue.hybrid_score.toFixed(2)"></span>
-                  <span class="ml-2">text <span x-text="(issue.text_score ?? 0).toFixed(2)"></span></span>
-                  <span class="ml-2">pr <span x-text="(issue.component_scores?.pagerank ?? 0).toFixed(2)"></span></span>
-                  <span class="ml-2">impact <span x-text="(issue.component_scores?.impact ?? 0).toFixed(2)"></span></span>
+                  <span x-text="safeNum(issue.hybrid_score)"></span>
+                  <span class="ml-2">text <span x-text="safeNum(issue.text_score)"></span></span>
+                  <span class="ml-2">pr <span x-text="safeNum(issue.component_scores?.pagerank)"></span></span>
+                  <span class="ml-2">impact <span x-text="safeNum(issue.component_scores?.impact)"></span></span>
                 </div>
               </div>
             </template>
@@ -3188,6 +3198,8 @@
           <div class="hidden md:block mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 space-y-1">
             <div>Click nodes for details • Drag to pan • Scroll to zoom</div>
             <div class="flex flex-wrap gap-x-3 gap-y-0.5">
+              <span><kbd class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[10px]">←→</kbd> Priority nav</span>
+              <span><kbd class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[10px]">↑↓</kbd> K-core nav</span>
               <span><kbd class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[10px]">H</kbd> Heatmap</span>
               <span><kbd class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[10px]">Esc</kbd> Deselect</span>
             </div>
@@ -3755,101 +3767,270 @@
       </div>
     </div>
 
-    <!-- Keyboard Help Modal (press '?' to open) -->
+    <!-- Help & Keyboard Shortcuts Modal - Mobile-optimized bottom sheet / Desktop centered -->
     <div x-show="showKeyboardHelp"
-         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-[60] overflow-y-auto"
+         class="fixed inset-0 z-[60]"
          @keydown.escape.window="showKeyboardHelp = false">
-      <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="fixed inset-0 bg-black/50" @click="showKeyboardHelp = false"></div>
-        <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full">
-          <div class="p-6">
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Keyboard Shortcuts</h2>
-              <button @click="showKeyboardHelp = false" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+      <!-- Backdrop -->
+      <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="showKeyboardHelp = false"></div>
+
+      <!-- Desktop: Centered modal / Mobile: Bottom sheet -->
+      <div class="fixed inset-0 flex items-end sm:items-center justify-center pointer-events-none">
+        <div x-show="showKeyboardHelp"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-y-full sm:translate-y-4 sm:scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave-end="opacity-0 translate-y-full sm:translate-y-4 sm:scale-95"
+             class="pointer-events-auto bg-white dark:bg-gray-800 w-full sm:max-w-2xl sm:mx-4 sm:rounded-2xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden max-h-[92vh] sm:max-h-[85vh]"
+             style="padding-bottom: env(safe-area-inset-bottom);">
+
+          <!-- Mobile drag handle -->
+          <div class="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
+            <div class="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+          </div>
+
+          <!-- Compact gradient header -->
+          <div class="relative bg-gradient-to-r from-beads-500 via-beads-600 to-purple-600 px-4 sm:px-6 py-3 sm:py-5 flex-shrink-0">
+            <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0wIDBoNDB2NDBIMHoiLz48Y2lyY2xlIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xKSIgY3g9IjIwIiBjeT0iMjAiIHI9IjEuNSIvPjwvZz48L3N2Zz4=')] opacity-60"></div>
+            <div class="relative flex items-center justify-between">
+              <div class="flex items-center space-x-2 sm:space-x-3">
+                <div class="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                  <svg class="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 class="text-base sm:text-xl font-bold text-white">Help & Shortcuts</h2>
+                  <p class="text-xs sm:text-sm text-white/80 hidden sm:block">Master the Beads Viewer</p>
+                </div>
+              </div>
+              <button @click="showKeyboardHelp = false"
+                      class="p-2 sm:p-2 hover:bg-white/20 active:bg-white/30 rounded-lg transition-colors touch-btn"
+                      aria-label="Close help">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
               </button>
             </div>
+          </div>
 
-            <div class="space-y-6">
-              <!-- Global Shortcuts -->
-              <div>
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Global</h3>
-                <div class="grid grid-cols-2 gap-2 text-sm">
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">/</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">Focus search</span>
+          <!-- Scrollable content - momentum scroll on iOS -->
+          <div class="flex-1 overflow-y-auto overscroll-contain px-3 sm:px-6 py-4 sm:py-5 space-y-3 sm:space-y-6 min-h-0"
+               style="-webkit-overflow-scrolling: touch;">
+
+            <!-- Graph View Section -->
+            <div class="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl p-3 sm:p-4 border border-purple-200/50 dark:border-purple-700/30">
+              <div class="flex items-center space-x-2 mb-2 sm:mb-3">
+                <div class="w-7 h-7 sm:w-8 sm:h-8 bg-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                  </svg>
+                </div>
+                <h3 class="font-semibold text-sm sm:text-base text-purple-900 dark:text-purple-100">Graph View</h3>
+              </div>
+              <div class="grid grid-cols-2 gap-1.5 sm:gap-2 text-xs sm:text-sm">
+                <div class="flex items-center space-x-2 sm:space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2">
+                  <kbd class="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 rounded text-[10px] sm:text-xs font-mono font-semibold flex-shrink-0">←→</kbd>
+                  <span class="text-gray-700 dark:text-gray-300 truncate">Priority nav</span>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2">
+                  <kbd class="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 rounded text-[10px] sm:text-xs font-mono font-semibold flex-shrink-0">↑↓</kbd>
+                  <span class="text-gray-700 dark:text-gray-300 truncate">K-core nav</span>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2">
+                  <kbd class="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 rounded text-[10px] sm:text-xs font-mono font-semibold flex-shrink-0">H</kbd>
+                  <span class="text-gray-700 dark:text-gray-300 truncate">Heatmap</span>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2">
+                  <kbd class="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 rounded text-[10px] sm:text-xs font-mono font-semibold flex-shrink-0">W</kbd>
+                  <span class="text-gray-700 dark:text-gray-300 truncate">What-if</span>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2">
+                  <kbd class="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 rounded text-[10px] sm:text-xs font-mono font-semibold flex-shrink-0">C</kbd>
+                  <span class="text-gray-700 dark:text-gray-300 truncate">Critical path</span>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2">
+                  <kbd class="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 rounded text-[10px] sm:text-xs font-mono font-semibold flex-shrink-0">Y</kbd>
+                  <span class="text-gray-700 dark:text-gray-300 truncate">Cycles</span>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2">
+                  <kbd class="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 rounded text-[10px] sm:text-xs font-mono font-semibold flex-shrink-0">1-5</kbd>
+                  <span class="text-gray-700 dark:text-gray-300 truncate">Layouts</span>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2">
+                  <kbd class="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-200 rounded text-[10px] sm:text-xs font-mono font-semibold flex-shrink-0">R</kbd>
+                  <span class="text-gray-700 dark:text-gray-300 truncate">Reset</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Global + Issue Nav in 2-column layout on mobile -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
+              <!-- Global Shortcuts Section -->
+              <div class="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl p-3 sm:p-4 border border-blue-200/50 dark:border-blue-700/30">
+                <div class="flex items-center space-x-2 mb-2 sm:mb-3">
+                  <div class="w-7 h-7 sm:w-8 sm:h-8 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
                   </div>
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">?</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">This help</span>
+                  <h3 class="font-semibold text-sm sm:text-base text-blue-900 dark:text-blue-100">Global</h3>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5 sm:gap-2 text-xs sm:text-sm">
+                  <div class="flex items-center space-x-2 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 py-1.5">
+                    <kbd class="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 rounded text-[10px] font-mono font-semibold">/</kbd>
+                    <span class="text-gray-700 dark:text-gray-300 truncate">Search</span>
                   </div>
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">d</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">Diagnostics</span>
+                  <div class="flex items-center space-x-2 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 py-1.5">
+                    <kbd class="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 rounded text-[10px] font-mono font-semibold">?</kbd>
+                    <span class="text-gray-700 dark:text-gray-300 truncate">Help</span>
                   </div>
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">c</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">Critical path</span>
+                  <div class="flex items-center space-x-2 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 py-1.5">
+                    <kbd class="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 rounded text-[10px] font-mono font-semibold">D</kbd>
+                    <span class="text-gray-700 dark:text-gray-300 truncate">Debug</span>
                   </div>
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Esc</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">Close modal</span>
+                  <div class="flex items-center space-x-2 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 py-1.5">
+                    <kbd class="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 rounded text-[10px] font-mono font-semibold">Esc</kbd>
+                    <span class="text-gray-700 dark:text-gray-300 truncate">Close</span>
                   </div>
                 </div>
               </div>
 
-              <!-- Issue Navigation -->
-              <div>
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Issue Detail</h3>
-                <div class="grid grid-cols-2 gap-2 text-sm">
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">j</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">Next issue</span>
+              <!-- Issue Navigation Section -->
+              <div class="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl p-3 sm:p-4 border border-emerald-200/50 dark:border-emerald-700/30">
+                <div class="flex items-center space-x-2 mb-2 sm:mb-3">
+                  <div class="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
                   </div>
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">k</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">Previous issue</span>
+                  <h3 class="font-semibold text-sm sm:text-base text-emerald-900 dark:text-emerald-100">Issues</h3>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5 sm:gap-2 text-xs sm:text-sm">
+                  <div class="flex items-center space-x-2 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 py-1.5">
+                    <kbd class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200 rounded text-[10px] font-mono font-semibold">J/K</kbd>
+                    <span class="text-gray-700 dark:text-gray-300 truncate">Next/Prev</span>
                   </div>
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">h</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">Go to blocker</span>
+                  <div class="flex items-center space-x-2 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 py-1.5">
+                    <kbd class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200 rounded text-[10px] font-mono font-semibold">H/L</kbd>
+                    <span class="text-gray-700 dark:text-gray-300 truncate">Block/Dep</span>
                   </div>
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">l</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">Go to dependent</span>
+                  <div class="flex items-center space-x-2 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 py-1.5">
+                    <kbd class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200 rounded text-[10px] font-mono font-semibold">G</kbd>
+                    <span class="text-gray-700 dark:text-gray-300 truncate">Graph</span>
                   </div>
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">g</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">Toggle graph</span>
+                  <div class="flex items-center space-x-2 bg-white/60 dark:bg-gray-800/60 rounded-lg px-2 py-1.5">
+                    <kbd class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200 rounded text-[10px] font-mono font-semibold">O</kbd>
+                    <span class="text-gray-700 dark:text-gray-300 truncate">Open</span>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <!-- Issue List -->
-              <div>
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Issue List</h3>
-                <div class="grid grid-cols-2 gap-2 text-sm">
-                  <div class="flex items-center space-x-2">
-                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">o</kbd>
-                    <span class="text-gray-600 dark:text-gray-400">Open first issue</span>
-                  </div>
+            <!-- Touch gestures - Mobile only -->
+            <div class="sm:hidden bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl p-3 border border-amber-200/50 dark:border-amber-700/30">
+              <div class="flex items-center space-x-2 mb-2">
+                <div class="w-7 h-7 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"/>
+                  </svg>
+                </div>
+                <h3 class="font-semibold text-sm text-amber-900 dark:text-amber-100">Touch</h3>
+              </div>
+              <div class="flex flex-wrap gap-1.5 text-xs">
+                <span class="px-2 py-1 bg-white/60 dark:bg-gray-800/60 rounded-lg text-gray-700 dark:text-gray-300">Tap = Select</span>
+                <span class="px-2 py-1 bg-white/60 dark:bg-gray-800/60 rounded-lg text-gray-700 dark:text-gray-300">Drag = Pan</span>
+                <span class="px-2 py-1 bg-white/60 dark:bg-gray-800/60 rounded-lg text-gray-700 dark:text-gray-300">Pinch = Zoom</span>
+                <span class="px-2 py-1 bg-white/60 dark:bg-gray-800/60 rounded-lg text-gray-700 dark:text-gray-300">Long-press = Info</span>
+              </div>
+            </div>
+
+            <!-- Mouse gestures - Desktop only -->
+            <div class="hidden sm:block bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl p-4 border border-amber-200/50 dark:border-amber-700/30">
+              <div class="flex items-center space-x-2 mb-3">
+                <div class="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/>
+                  </svg>
+                </div>
+                <h3 class="font-semibold text-base text-amber-900 dark:text-amber-100">Mouse</h3>
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-sm">
+                <div class="flex items-center space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                  <span class="px-2 py-1 bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-200 rounded text-xs font-semibold">Click</span>
+                  <span class="text-gray-700 dark:text-gray-300">Select node</span>
+                </div>
+                <div class="flex items-center space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                  <span class="px-2 py-1 bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-200 rounded text-xs font-semibold">Drag</span>
+                  <span class="text-gray-700 dark:text-gray-300">Pan / Move</span>
+                </div>
+                <div class="flex items-center space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                  <span class="px-2 py-1 bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-200 rounded text-xs font-semibold">Scroll</span>
+                  <span class="text-gray-700 dark:text-gray-300">Zoom</span>
+                </div>
+                <div class="flex items-center space-x-3 bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                  <span class="px-2 py-1 bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-200 rounded text-xs font-semibold">Hover</span>
+                  <span class="text-gray-700 dark:text-gray-300">Tooltip</span>
                 </div>
               </div>
+            </div>
 
-              <!-- Tips -->
-              <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                  <strong>Tip:</strong> Use <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">h</kbd> and <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">l</kbd> to traverse the dependency chain. Navigate "left" to blockers and "right" to dependents.
-                </p>
+            <!-- Pro Tips - Collapsed by default on mobile -->
+            <div x-data="{ tipsOpen: window.innerWidth >= 640 }" class="bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-700/50 dark:to-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
+              <button @click="tipsOpen = !tipsOpen" class="w-full p-3 sm:p-4 flex items-center justify-between sm:cursor-default" :class="{ 'sm:pointer-events-none': true }">
+                <div class="flex items-center space-x-2 sm:space-x-3">
+                  <div class="w-7 h-7 sm:w-8 sm:h-8 bg-beads-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                  </div>
+                  <h3 class="font-semibold text-sm sm:text-base text-gray-900 dark:text-gray-100">Pro Tips</h3>
+                </div>
+                <svg class="w-5 h-5 text-gray-400 transition-transform sm:hidden" :class="{ 'rotate-180': tipsOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
+              <div x-show="tipsOpen" x-collapse class="px-3 pb-3 sm:px-4 sm:pb-4 sm:pt-0">
+                <ul class="text-xs sm:text-sm text-gray-600 dark:text-gray-400 space-y-1.5 pl-9 sm:pl-11">
+                  <li class="flex items-start space-x-2">
+                    <span class="text-beads-500 mt-0.5 flex-shrink-0">•</span>
+                    <span><kbd class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[10px] sm:text-xs">←→</kbd> finds high-priority issues by PageRank</span>
+                  </li>
+                  <li class="flex items-start space-x-2">
+                    <span class="text-beads-500 mt-0.5 flex-shrink-0">•</span>
+                    <span><strong>Heatmap</strong> shows link urgency and node importance</span>
+                  </li>
+                  <li class="flex items-start space-x-2">
+                    <span class="text-beads-500 mt-0.5 flex-shrink-0">•</span>
+                    <span><kbd class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[10px] sm:text-xs">H/L</kbd> traverses dependency chains</span>
+                  </li>
+                </ul>
               </div>
+            </div>
+          </div>
+
+          <!-- Compact footer with safe area -->
+          <div class="flex-shrink-0 px-3 sm:px-6 py-3 sm:py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+                Press <kbd class="px-1 py-0.5 bg-gray-200 dark:bg-gray-600 rounded text-[10px] font-mono">?</kbd> anywhere
+              </p>
+              <p class="text-[10px] text-gray-500 dark:text-gray-400 sm:hidden">
+                Swipe down to close
+              </p>
+              <button @click="showKeyboardHelp = false"
+                      class="px-4 py-2 sm:px-4 sm:py-2 bg-beads-500 hover:bg-beads-600 active:bg-beads-700 text-white text-sm font-medium rounded-lg transition-colors touch-btn flex-shrink-0">
+                Got it!
+              </button>
             </div>
           </div>
         </div>

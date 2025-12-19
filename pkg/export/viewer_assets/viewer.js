@@ -2047,6 +2047,20 @@ function formatDateFull(isoString) {
 }
 
 /**
+ * Safely format a number, returning em-dash for NaN/undefined/null/Infinity
+ * @param {number} value - The number to format
+ * @param {number} decimals - Number of decimal places (default 2)
+ * @param {string} suffix - Optional suffix like '%' (default '')
+ * @returns {string} Formatted number or em-dash
+ */
+function safeNum(value, decimals = 2, suffix = '') {
+  if (value === undefined || value === null || typeof value !== 'number' || !isFinite(value)) {
+    return '—';
+  }
+  return value.toFixed(decimals) + suffix;
+}
+
+/**
  * Calculate score breakdown as percentages for visualization
  * Returns array of { name, value, percent, color, weight } sorted by contribution
  */
@@ -3347,6 +3361,11 @@ function beadsApp() {
      * Format date helper (always absolute with time)
      */
     formatDateFull,
+
+    /**
+     * Safe number formatter (returns em-dash for NaN/undefined/null/Infinity)
+     */
+    safeNum,
 
     /**
      * Render markdown helper
