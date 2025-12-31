@@ -316,7 +316,7 @@ func (m UpdateModal) View() string {
 
 // renderSpinner returns an animated spinner character
 func (m UpdateModal) renderSpinner() string {
-	frames := []string{"", "", "", "", "", "", "", "", "", ""}
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	idx := int(time.Since(m.startTime).Milliseconds()/100) % len(frames)
 	return frames[idx]
 }
@@ -335,7 +335,7 @@ func (m UpdateModal) renderProgressBar() string {
 		filled = width
 	}
 
-	bar := strings.Repeat("", filled) + strings.Repeat(" ", width-filled)
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 	return fmt.Sprintf("[%s] %.0f%%", bar, percent*100)
 }
 

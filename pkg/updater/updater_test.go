@@ -219,6 +219,9 @@ func TestCompareVersions_DevBuilds(t *testing.T) {
 		{"dev is newer than release", "v1.0.0", "dev", -1},
 		{"nightly is newer than release", "v1.0.0", "nightly", -1},
 		{"dirty string is newer than release", "v1.0.0", "dirty", -1},
+		{"local is newer than release", "v1.0.0", "local", -1},
+		{"snapshot is newer than release", "v1.0.0", "snapshot", -1},
+		{"git-abc123 is newer than release", "v1.0.0", "git-abc123", -1},
 
 		// Parseable dev builds with suffixes - THE BUG FIX CASES
 		// These should NOT trigger update prompts when local is a dev build of the same version

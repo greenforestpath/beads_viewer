@@ -166,7 +166,12 @@ func compareVersions(v1, v2 string) int {
 	// than any release to prevent downgrade prompts.
 	isDev := func(v string) bool {
 		v = strings.ToLower(v)
-		return strings.Contains(v, "dev") || strings.Contains(v, "nightly") || strings.Contains(v, "dirty")
+		return strings.Contains(v, "dev") ||
+			strings.Contains(v, "dirty") ||
+			strings.Contains(v, "nightly") ||
+			strings.Contains(v, "local") ||
+			strings.Contains(v, "snapshot") ||
+			strings.Contains(v, "git")
 	}
 
 	if p2 == nil && isDev(v2) {
