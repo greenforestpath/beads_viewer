@@ -765,6 +765,8 @@ func TestVisibleRange(t *testing.T) {
 		{"zero height uses default 20", 100, 0, 0, 0, 20},
 		{"negative height uses default 20", 100, -5, 0, 0, 20},
 		{"single node", 1, 10, 0, 0, 1},
+		{"negative offset clamps to start", 100, 10, -5, 0, 10},
+		{"negative offset small list", 5, 10, -5, 0, 5},
 	}
 
 	for _, tt := range tests {

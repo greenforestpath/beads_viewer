@@ -291,11 +291,12 @@ func (t *TreeModel) Build(issues []model.Issue) {
 	// If all issues are roots (no hierarchy), that's fine - show them all
 	// The View() will handle displaying a helpful message if needed
 
-	// Step 6: Build the flat list for navigation
-	t.rebuildFlatList()
-
-	// Step 7: Load persisted state and rebuild flat list (bv-afcm)
+	// Step 6: Load persisted state (bv-afcm)
+	// This modifies node.Expanded values before we build the flat list
 	t.loadState()
+
+	// Step 7: Build the flat list for navigation
+	// This must come after loadState so expand states are applied
 	t.rebuildFlatList()
 
 	t.built = true
@@ -826,25 +827,22 @@ func (t *TreeModel) visibleRange() (start, end int) {
 		visibleCount = 20 // Default
 	}
 
-	// Calculate range based on viewport offset
+	// Start with the viewport offset, clamped to non-negative
 	start = t.viewportOffset
+	if start < 0 {
+		start = 0
+	}
+
+	// Calculate end based on clamped start
 	end = start + visibleCount
 
-	// Clamp to bounds
+	// If end exceeds list, clamp it and adjust start to maximize visible items
 	if end > len(t.flatList) {
 		end = len(t.flatList)
 		start = end - visibleCount
 		if start < 0 {
 			start = 0
 		}
-	}
-
-	// Ensure start is valid
-	if start < 0 {
-		start = 0
-	}
-	if start > len(t.flatList) {
-		start = len(t.flatList)
 	}
 
 	return start, end
