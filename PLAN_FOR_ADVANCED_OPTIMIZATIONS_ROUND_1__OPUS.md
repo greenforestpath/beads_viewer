@@ -77,7 +77,7 @@ RAM: 499Gi
 
 Measurement harness:
 ```python
-import math, os, statistics, subprocess, time
+import math, os, subprocess, time
 
 cmd = ['/tmp/bv_round1', '--robot-triage']
 env = os.environ.copy()
@@ -415,7 +415,8 @@ To achieve 90%+ reduction, also pool `nodes` slice and `localBC` maps (requires 
 
 5. **Concurrency Safety**:
    - Each goroutine in `ApproxBetweenness` gets its own buffer from pool
-   - Buffers are returned AFTER results are merged to `partialBC`
+   - Buffers are returned AFTER results are written to `localBC` (before merge to `partialBC`)
+   - Results live in `localBC`, not in the buffer, so merge is safe after buffer return
    - `sync.Pool` guarantees no concurrent access to same buffer
 
 6. **Pool Eviction Safety**:
