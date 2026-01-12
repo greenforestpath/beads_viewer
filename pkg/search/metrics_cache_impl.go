@@ -211,6 +211,7 @@ func defaultIssueMetrics(issueID string) IssueMetrics {
 	return IssueMetrics{
 		IssueID:      issueID,
 		PageRank:     defaultPageRank,
+		Priority:     2,
 		BlockerCount: 0,
 	}
 }

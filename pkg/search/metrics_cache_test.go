@@ -99,6 +99,9 @@ func TestMetricsCache_GetBatch_DefaultsForMissing(t *testing.T) {
 	if results["B"].PageRank != defaultPageRank {
 		t.Fatalf("expected B default PageRank %f, got %f", defaultPageRank, results["B"].PageRank)
 	}
+	if results["B"].Priority != 2 {
+		t.Fatalf("expected B default priority 2, got %d", results["B"].Priority)
+	}
 }
 
 func TestMetricsCache_Get_ReturnsDefaultOnError(t *testing.T) {

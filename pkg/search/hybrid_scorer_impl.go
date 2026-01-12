@@ -45,10 +45,20 @@ func (s *hybridScorer) Score(issueID string, textScore float64) (HybridScore, er
 		}, nil
 	}
 
-	statusScore := normalizeStatus(metrics.Status)
-	priorityScore := normalizePriority(metrics.Priority)
-	impactScore := normalizeImpact(metrics.BlockerCount, s.cache.MaxBlockerCount())
-	recencyScore := normalizeRecency(metrics.UpdatedAt)
+	// Skip normalizations for zero-weight components to save computation
+	var statusScore, priorityScore, impactScore, recencyScore float64
+	if s.weights.Status > 0 {
+		statusScore = normalizeStatus(metrics.Status)
+	}
+	if s.weights.Priority > 0 {
+		priorityScore = normalizePriority(metrics.Priority)
+	}
+	if s.weights.Impact > 0 {
+		impactScore = normalizeImpact(metrics.BlockerCount, s.cache.MaxBlockerCount())
+	}
+	if s.weights.Recency > 0 {
+		recencyScore = normalizeRecency(metrics.UpdatedAt)
+	}
 
 	final := s.weights.TextRelevance*textScore +
 		s.weights.PageRank*metrics.PageRank +
