@@ -414,9 +414,10 @@ func singleSourceBetweennessDense(adj cachedAdjacency, sourceIdx int, buf *brand
 	buf.queue = append(buf.queue, sourceIdx)
 
 	// BFS phase
-	for len(buf.queue) > 0 {
-		v := buf.queue[0]
-		buf.queue = buf.queue[1:]
+	head := 0
+	for head < len(buf.queue) {
+		v := buf.queue[head]
+		head++
 		buf.stack = append(buf.stack, v)
 
 		for _, w := range adj.outgoing[v] {
