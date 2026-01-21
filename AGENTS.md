@@ -102,9 +102,11 @@ When unsure of an API, look up current docs rather than guessing. Key dependenci
 
 ---
 
-## MCP Agent Mail — Multi-Agent Coordination
+## MCP Agent Mail — Multi-Agent Coordination (Optional)
 
-Agent Mail is available as an MCP server for agent-to-agent coordination. If it's not available, flag to the user—they may need to start it with `am` alias or manually.
+> **Note:** This section is optional. If you're operating as a single agent or using alternative coordination methods, skip to "Issue Tracking with br" below.
+
+Agent Mail is available as an MCP server for agent-to-agent coordination. If it's not available and you need multi-agent coordination, flag to the user—they may need to start it with `am` alias or manually.
 
 **Troubleshooting:** If Agent Mail fails with "Too many open files" (common on macOS), restart with higher limit: `ulimit -n 4096; python -m mcp_agent_mail.cli serve-http`
 
@@ -214,7 +216,7 @@ Never:
 
 bv is a graph-aware triage engine for Beads projects (.beads/beads.jsonl). Instead of parsing JSONL or hallucinating graph traversal, use robot flags for deterministic, dependency-aware outputs with precomputed metrics (PageRank, betweenness, critical path, cycles, HITS, eigenvector, k-core).
 
-**Scope boundary:** bv handles *what to work on* (triage, priority, planning). For agent-to-agent coordination (messaging, work claiming, file reservations), use MCP Agent Mail.
+**Scope boundary:** bv handles *what to work on* (triage, priority, planning). For multi-agent coordination (messaging, work claiming, file reservations), see the optional MCP Agent Mail section above.
 
 **⚠️ CRITICAL: Use ONLY `--robot-*` flags. Bare `bv` launches an interactive TUI that blocks your session.**
 
