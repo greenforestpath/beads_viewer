@@ -737,7 +737,7 @@ func buildQuickWins(scores []ImpactScore, unblocksMap map[string][]string, limit
 		quickWinScore float64
 	}
 
-	var candidates []candidate
+	candidates := make([]candidate, 0, len(scores))
 	for _, score := range scores {
 		unblocks := unblocksMap[score.IssueID]
 		// Quick win score formula: Balance Impact vs Effort
