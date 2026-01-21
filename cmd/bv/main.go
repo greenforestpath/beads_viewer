@@ -2112,8 +2112,7 @@ func main() {
 			output.Baseline.CreatedAt = bl.CreatedAt.Format(time.RFC3339)
 			output.Baseline.CommitSHA = bl.CommitSHA
 
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
+			encoder := newRobotEncoder(os.Stdout)
 			if err := encoder.Encode(output); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding drift result: %v\n", err)
 				os.Exit(1)
@@ -2576,8 +2575,7 @@ func main() {
 					AsOfCommit:  asOfResolved,
 					Message:     "No actionable items available",
 				}
-				encoder := json.NewEncoder(os.Stdout)
-				encoder.SetIndent("", "  ")
+				encoder := newRobotEncoder(os.Stdout)
 				if err := encoder.Encode(output); err != nil {
 					fmt.Fprintf(os.Stderr, "Error encoding robot-next: %v\n", err)
 					os.Exit(1)
@@ -2612,8 +2610,7 @@ func main() {
 				ShowCmd:     fmt.Sprintf("bd show %s", top.ID),
 			}
 
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
+			encoder := newRobotEncoder(os.Stdout)
 			if err := encoder.Encode(output); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding robot-next: %v\n", err)
 				os.Exit(1)
@@ -2960,8 +2957,7 @@ func main() {
 		// Handle --robot-correlation-stats
 		if *robotCorrelationStats {
 			stats := feedbackStore.GetStats()
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
+			encoder := newRobotEncoder(os.Stdout)
 			if err := encoder.Encode(stats); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding stats: %v\n", err)
 				os.Exit(1)
@@ -3044,8 +3040,7 @@ func main() {
 				explanation.Recommendation = fmt.Sprintf("Already has feedback: %s", fb.Type)
 			}
 
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
+			encoder := newRobotEncoder(os.Stdout)
 			if err := encoder.Encode(explanation); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding explanation: %v\n", err)
 				os.Exit(1)
@@ -3115,8 +3110,7 @@ func main() {
 				"reason":    *correlationFeedbackReason,
 				"orig_conf": originalConf,
 			}
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
+			encoder := newRobotEncoder(os.Stdout)
 			if err := encoder.Encode(result); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding result: %v\n", err)
 				os.Exit(1)
@@ -3186,8 +3180,7 @@ func main() {
 				"reason":    *correlationFeedbackReason,
 				"orig_conf": originalConf,
 			}
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
+			encoder := newRobotEncoder(os.Stdout)
 			if err := encoder.Encode(result); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding result: %v\n", err)
 				os.Exit(1)
@@ -3860,8 +3853,7 @@ func main() {
 				os.Exit(1)
 			}
 			// Output single sprint as JSON
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
+			encoder := newRobotEncoder(os.Stdout)
 			if err := encoder.Encode(found); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding sprint: %v\n", err)
 				os.Exit(1)
@@ -3877,8 +3869,7 @@ func main() {
 				SprintCount: len(sprints),
 				Sprints:     sprints,
 			}
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
+			encoder := newRobotEncoder(os.Stdout)
 			if err := encoder.Encode(output); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding sprints: %v\n", err)
 				os.Exit(1)
@@ -4375,8 +4366,7 @@ func main() {
 				Diff:             diff,
 			}
 
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
+			encoder := newRobotEncoder(os.Stdout)
 			if err := encoder.Encode(output); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding diff: %v\n", err)
 				os.Exit(1)
