@@ -300,7 +300,6 @@ func findMax(m map[string]float64) float64 {
 	return max
 }
 
-// findMaxInt finds the maximum int value in a map
 // computeMedianEstimatedMinutes calculates the median estimated_minutes across all issues
 func (a *Analyzer) computeMedianEstimatedMinutes() int {
 	var estimates []int
@@ -405,6 +404,19 @@ func computeUrgency(issue *model.Issue, now time.Time) (float64, string) {
 
 	// Apply time decay: urgency increases as issue ages without resolution
 	// Uses exponential growth with half-life of UrgencyDecayDays
+	// Handle zero CreatedAt (unknown creation date)
+	if issue.CreatedAt.IsZero() {
+		// Unknown creation date - return moderate urgency based on labels only
+		if score > 1.0 {
+			score = 1.0
+		}
+		explanation := ""
+		if len(reasons) > 0 {
+			explanation = strings.Join(reasons, ", ")
+		}
+		return score, explanation
+	}
+
 	daysSinceCreated := now.Sub(issue.CreatedAt).Hours() / 24
 	if daysSinceCreated > 0 {
 		// Decay factor: 0.0 at creation, grows toward 0.5 max contribution

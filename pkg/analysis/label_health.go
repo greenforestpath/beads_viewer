@@ -430,7 +430,8 @@ func ComputeFreshnessMetrics(issues []model.Issue, now time.Time, staleDays int)
 			mostRecent = iss.UpdatedAt
 		}
 		if !isClosedLikeStatus(iss.Status) {
-			if oldestOpen.IsZero() || iss.CreatedAt.Before(oldestOpen) {
+			// Only consider issues with valid CreatedAt for oldest calculation
+			if !iss.CreatedAt.IsZero() && (oldestOpen.IsZero() || iss.CreatedAt.Before(oldestOpen)) {
 				oldestOpen = iss.CreatedAt
 			}
 		}
