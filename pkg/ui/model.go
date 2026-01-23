@@ -685,6 +685,8 @@ func (m *Model) clearSemanticScores() {
 	if changed && m.list.FilterState() != list.Unfiltered {
 		prevState := m.list.FilterState()
 		currentTerm := m.list.FilterInput.Value()
+		// Reset cursor before SetFilterText to avoid panic on out-of-bounds access
+		m.list.Select(0)
 		m.list.SetFilterText(currentTerm)
 		if prevState == list.Filtering {
 			m.list.SetFilterState(list.Filtering)
