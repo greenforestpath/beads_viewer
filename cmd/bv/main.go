@@ -56,7 +56,8 @@ func main() {
 	yesFlag := flag.Bool("yes", false, "Skip confirmation prompts (use with --update)")
 	exportFile := flag.String("export-md", "", "Export issues to a Markdown file (e.g., report.md)")
 	robotHelp := flag.Bool("robot-help", false, "Show AI agent help")
-	outputFormat := flag.String("format", "", "Structured output format for --robot-* commands: json or toon")
+	outputFormat := flag.String("format", "", "Structured output format for --robot-* commands: json or toon (env: BV_OUTPUT_FORMAT, TOON_DEFAULT_FORMAT)")
+	toonStats := flag.Bool("stats", false, "Show JSON vs TOON token estimates on stderr (env: TOON_STATS=1)")
 	robotInsights := flag.Bool("robot-insights", false, "Output graph analysis and insights as JSON for AI agents")
 	robotPlan := flag.Bool("robot-plan", false, "Output dependency-respecting execution plan as JSON for AI agents")
 	robotPriority := flag.Bool("robot-priority", false, "Output priority recommendations as JSON for AI agents")
@@ -286,6 +287,7 @@ func main() {
 	// Structured output format for --robot-* commands.
 	robotOutputFormat = resolveRobotOutputFormat(*outputFormat)
 	robotToonEncodeOptions = resolveToonEncodeOptionsFromEnv()
+	robotShowToonStats = *toonStats || strings.TrimSpace(os.Getenv("TOON_STATS")) == "1"
 	if robotOutputFormat != "json" && robotOutputFormat != "toon" {
 		fmt.Fprintf(os.Stderr, "Invalid --format %q (expected json|toon)\n", robotOutputFormat)
 		os.Exit(2)
@@ -313,6 +315,8 @@ func main() {
 		fmt.Println("  --format json|toon")
 		fmt.Println("      Structured output encoding for --robot-* commands (default: json).")
 		fmt.Println("      Env: BV_OUTPUT_FORMAT, TOON_DEFAULT_FORMAT.")
+		fmt.Println("  --stats")
+		fmt.Println("      Print JSON vs TOON token estimates to stderr (or set TOON_STATS=1).")
 		fmt.Println("")
 		fmt.Println("Commands:")
 		fmt.Println("  --robot-plan")
@@ -6597,6 +6601,7 @@ func generateHistoryForExport(issues []model.Issue) (*TimeTravelHistory, error) 
 
 var robotOutputFormat = "json"
 var robotToonEncodeOptions = toon.DefaultEncodeOptions()
+var robotShowToonStats bool
 
 type robotEncoder interface {
 	Encode(v any) error
@@ -6619,6 +6624,19 @@ func (e *toonRobotEncoder) Encode(v any) error {
 
 	// json.Encoder.Encode always terminates with a newline; match that behavior for TOON.
 	out = strings.TrimRight(out, "\n")
+
+	if robotShowToonStats {
+		if jsonBytes, jerr := json.Marshal(v); jerr == nil {
+			jsonTokens := estimateTokens(string(jsonBytes))
+			toonTokens := estimateTokens(out)
+			savings := 0
+			if jsonTokens > 0 && toonTokens <= jsonTokens {
+				savings = int((1.0 - (float64(toonTokens) / float64(jsonTokens))) * 100.0)
+			}
+			fmt.Fprintf(os.Stderr, "[stats] JSON≈%d tok, TOON≈%d tok (%d%% savings)\n", jsonTokens, toonTokens, savings)
+		}
+	}
+
 	_, err = io.WriteString(e.w, out+"\n")
 	return err
 }
@@ -6679,4 +6697,13 @@ func resolveToonEncodeOptionsFromEnv() toon.EncodeOptions {
 	}
 
 	return opts
+}
+
+func estimateTokens(s string) int {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return 0
+	}
+	// Coarse heuristic; good enough for comparing JSON vs TOON output size.
+	return (len(trimmed) + 3) / 4
 }
